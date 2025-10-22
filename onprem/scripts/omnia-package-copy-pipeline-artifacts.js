@@ -7,6 +7,17 @@ if (incomingArgs.length < 3) {
   process.exit(1);
 }
 
+const currentPath = process.cwd();
+
+const folders = fs.readdirSync(currentPath)
+  .filter(name => fs.statSync(path.join(currentPath, name)).isDirectory());
+
+console.log('Folders in current path:');
+console.log(folders);
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+
 const srcFolder = "" //$(Build.SourcesDirectory);
 const destDir = "C:\\tmp"; //$(System.ArtifactsDirectory);
 const destPackageFolders = destinationFolder + "/packages";
