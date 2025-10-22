@@ -1,0 +1,119 @@
+############################################################################################################
+# Generic Get Latest Release Version Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template retrieves the latest successful release version from a specified pipeline definition
+# in Azure DevOps. It sets several variables that can be used in subsequent steps of the pipeline.
+# If no successful release is found, it can optionally trigger a new release of the latest build
+# based on the provided DefinitionId.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - DefinitionId: The ID of the pipeline definition to query for releases.
+############################################################################################################
+
+parameters:
+  - name: DefinitionId
+
+  # ------------------------------------
+  # Variables to be set by this template
+  # ------------------------------------
+  # - name: ShouldBuild
+  #   value: false
+  # - name: BuildDefOnBuild
+  #   value: ""
+  # - name: BuildIdUsedInRelease
+  #   value: ""
+  # - name: BuildNumberUsedInRelease
+  #   value: ""
+  # - name: BuildTagUsedInRelease
+  #   value: ""
+  # - name: BuildConfigUsedInRelease
+  #   value: ""
+  # - name: BuildPoolUsedInRelease
+  #   value: ""
+  # - name: NewReleaseBuildNumber
+  #   value: ""
+
+steps:
+  - script: |
+      set -euo pipefail
+
+      if [ -z "${{ parameters.DefinitionId }}" ]; then
+        echo "DefinitionId is not set. Please provide a valid DefinitionId."
+        exit 1
+      fi
+
+      TOKEN=$(System.AccessToken)
+
+      echo "---------------------------------------------"
+      echo "1. Get all release runs..."
+      response=$(curl -s -u :$TOKEN \
+        "https://dev.azure.com/omnia-source/Omnia/_apis/pipelines/${{ parameters.DefinitionId }}/runs?api-version=7.1-preview.1")
+
+      # Parse and find the first successful run
+      run_id=$(echo "$response" | jq -r '
+              .value[] 
+              | select(.state == "completed" and .result == "succeeded") 
+              | .id' | head -n 1)
+
+      if [ -z "$run_id" ]; then
+        echo "  No successful runs found."
+        echo "  Please run a new release of the build first."
+        exit 1
+      else
+        echo "  Run found: $run_id"
+
+        echo "---------------------------------------------"
+        echo "2. Get the latest run on definition: ${{ parameters.DefinitionId }}"
+        response=$(curl -s -u :$TOKEN "https://dev.azure.com/omnia-source/Omnia/_apis/pipelines/${{ parameters.DefinitionId }}/runs/$run_id?api-version=7.1-preview.1")
+        build_id_on_release=$(echo "$response" | jq -e -r '.resources.pipelines.OmniaMainBuild.pipeline.id')
+        build_config_on_release=$(echo "$response" | jq -e -r '.templateParameters.BuildConfiguration')
+        build_pool_on_release=$(echo "$response" | jq -e -r '.templateParameters.PoolName')
+
+        echo "##vso[task.setvariable variable=BuildIdUsedInRelease]$build_id_on_release"
+        echo "##vso[task.setvariable variable=BuildConfigUsedInRelease]$build_config_on_release"
+        echo "##vso[task.setvariable variable=BuildPoolUsedInRelease]$build_pool_on_release"
+
+        echo "---------------------------------------------"
+        echo "3. Get the version number used on latest release"
+        response=$(curl -s -u :$TOKEN "https://dev.azure.com/omnia-source/Omnia/_apis/build/builds/$run_id/tags")
+        version_tag=$(echo "$response" | jq -e -r '.value[0]')
+        echo "   Got the tag: $version_tag"
+        echo "##vso[task.setvariable variable=LatestReleaseVersionTag]$version_tag"
+
+        echo "---------------------------------------------"
+        echo "4. Get the build used in latest release"
+        response=$(curl -s -u :$TOKEN "https://dev.azure.com/omnia-source/Omnia/_apis/build/builds/$build_id_on_release")
+        build_def_on_build=$(echo "$response" | jq -e -r '.definition.id')
+        echo "   Got the build used and it's definition: $build_def_on_build"
+        echo "##vso[task.setvariable variable=BuildDefOnBuild]$build_def_on_build"
+
+        echo "---------------------------------------------"
+        echo "5. Get last successful build for build definition: $build_def_on_build"
+        response=$(curl -s -u :$TOKEN "https://dev.azure.com/omnia-source/Omnia/_apis/build/builds/?definitions=$build_def_on_build&statusFilter=completed&resultFilter=succeeded&maxBuildsPerDefinition=1")
+        last_build_id=$(echo "$response" | jq -e -r '
+              .value[] 
+              | .id' | head -n 1)
+        echo "   Got the last build id: $last_build_id"
+        echo "##vso[task.setvariable variable=LastBuildId]$last_build_id"
+
+        echo "---------------------------------------------"
+        if [ "$run_id" -lt "$last_build_id" ]; then
+          echo "##vso[task.setvariable variable=ShouldBuild]true"
+          echo "We have a newer build without a release...."
+        else
+          echo "##vso[task.setvariable variable=ShouldBuild]false"
+          echo "Latest release are using latest build..."
+        fi
+
+      fi
+    displayName: "Get latest version"
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  - script: |
+      echo "ShouldBuild: $(ShouldBuild)"
+      echo "BuildDefOnBuild: $(BuildDefOnBuild)"
+      echo "BuildIdUsedInRelease: $(BuildIdUsedInRelease)"
+      echo "BuildConfigUsedInRelease: $(BuildConfigUsedInRelease)"
+      echo "BuildPoolUsedInRelease: $(BuildPoolUsedInRelease)"
+    displayName: "Display retrieved variables"

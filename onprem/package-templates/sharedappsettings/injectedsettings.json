@@ -1,0 +1,102 @@
+{
+  "OmniaServicesDnsSettings": {
+    "serviceUniqueIdToDns": {
+      "cfbb6092-29d8-47fa-9866-4f755c04720d": "[OMNIA_AUTH_HOSTNAME]",
+      "bb000000-0000-bbbb-0000-0000000000bb": "[OMNIA_HOSTNAME]",
+      "cc000000-0000-cccc-0000-0000000000cc": "[OMNIA_HOSTNAME]",
+      "39df27aa-95f1-4a23-b3f6-8b231afcda82": "[WORKPLACE_HOSTNAME]",
+      "4d176592-779c-45f9-ad00-1d3160818a56": "[WORKPLACE_HOSTNAME]",
+      "b3d13ef7-5ff8-4496-a283-81a742080aef": "[OMS_HOSTNAME]",
+      "79e300c3-5e5a-4836-9f76-9e9bb17ef620": "[OMS_HOSTNAME]",
+      "d60fa82a-129a-41a9-93ce-d784dcb217b0": "[WCM_HOSTNAME]",
+      "c038bb05-41f2-45e5-a302-0748e25a415d": "[WCM_HOSTNAME]",
+      // These below is Optional Installation, please comment when not use
+      "a6a9556c-26c7-45e3-b21b-3f163c6bd9a4": "[OMNIA_ANALYTICS_MATOMO]",
+      "7ef5df97-1b27-46ea-a427-a6447c77b9e1": "[OMNIA_SEARCH]",
+      "11fc1deb-03b6-4411-a497-cfd2c98594b5": "[OMNIA_TRANSLATOR]"
+    },
+    "defaultDomain": "[OMNIA_HOSTNAME]"
+  },
+  "OmniaAppSettings": {
+    "OmniaEnvironmentSettings": {
+      "AzureTenantId": "81e1dd96-dd55-4ad0-a29f-5247b154022e",
+      "TenantId": "c954a1ed-e816-46a0-9874-e141716c7ddc",
+      "AllowCorsOrigins": [
+        "[SP_AUTHORITY_HOSTNAME]",
+        "[OMNIA_HOSTNAME]"
+      ],
+      "AllowFrameAncestors": [
+        "[OMNIA_HOSTNAME]",
+        "[SP_AUTHORITY_HOSTNAME]",
+        "*.microsoft.com"
+      ]
+    },
+    "MessageBrokerConnectionString": "[MESSAGE_BUS_CONNECTION_STRING]"
+  },
+  "OmniaSharePointServerSettings": {
+    "SystemAccountAuthenticationType": "[OMNIA_SYSTEM_AUTHEN_TYPE]",
+    "Logging": {
+      "ConnectionString": "[LOGGING_DB_CONNECTION_STRING]",
+      "LogLevel": "Error"
+    },
+    "ADSyncSettings": {
+      "Connections": [
+        {
+          "DomainName": "[AD_DOMAIN_NAME]",
+          "Port": "[AD_PORT]",
+          "UserName": "[AD_ACCOUNT_USERNAME]",
+          "PassWord": "[AD_ACCOUNT_PASSWORD]",
+          "AllowPaths": [ "AD_PATH" ]
+        }
+      ]
+    }
+  },
+  "KeyVault": {
+    "Vault": "[KEYVAULT_DB_CONNECTION_STRING]",
+    "ClientId": "",
+    "ClientSecret": ""
+  },
+  "SharePointAppSettings": {
+    "AuthorityUrl": "[SP_AUTHORITY_URL]",
+    "AdminUrl": "[SP_ADMIN_URL]",
+    "MySiteUrl": "[SP_MYSITE_URL]"
+  },
+  "OmniaRuntimeSettings": {
+    "serviceBusConnectionstring": "[MESSAGE_BUS_CONNECTION_STRING]",
+    "serviceBusQueueName": "queue-ci",
+    "serviceBusTopicName": "topic-ci"
+  },
+  "OmniaEncryptionSettings": {
+    "Passphrase": "f3df8514-9e60-4fc6-b5a0-d80a952584a4"
+  },
+  "DevelopmentOverrides": {
+    "MessageBus": {
+      "MessagePrefix": "omniaMessageBus"
+    },
+    "QueueBus": {
+      "QueuePrefix": "omniaQueueBus"
+    }
+  },
+  "OmniaLicensingSettings": {
+    "licenses": [
+      {
+        "id": "a885e9dd-176c-4889-8748-67fd66cda78e",
+        "name": "DigitalWorkplace"
+      },
+      {
+        "id": "5ac675c7-7f5a-4daf-a9ea-65de8b84c2ce",
+        "name": "ControlledDocuments"
+      }
+    ]
+  },
+  "EnvironmentVariable": {
+    "General": {
+      "OMNIA_LOGGING": "ON",
+      "OMNIA_LOGGING_LEVEL": "Error",
+      "OMNIA_CONSOLE_LOGGING": "ON",
+      "OMNIA_BACKENDRUNTIME_ENVIRONMENT": "sponprem",
+      "OMNIA_ENVIRONMENT": "IISServer",
+      "ASPNETCORE_ENVIRONMENT": "Production"
+    }
+  }
+}

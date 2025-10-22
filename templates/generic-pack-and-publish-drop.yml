@@ -1,0 +1,40 @@
+#############################################################################################################
+# Generic Pack and Publish Drop Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template creates a tar.gz archive of the specified artifact path
+# and publishes it as a build artifact named "drop".
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - ArtifactPath: The path to the artifacts to be packed and published
+#############################################################################################################
+
+parameters:
+  - name: ArtifactPath
+    type: string
+    default: ""
+
+steps:
+  # -----------------------------------------------------------------------------------------------------------
+  # ARTIFACTS: Create artifacts.tar.gz (all in ArtifactPath)
+  # -----------------------------------------------------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+
+      cd $SRC_PATH
+
+      tar -zcvf ../artifacts.tar.gz "$SRC_PATH"
+      cp "../artifacts.tar.gz" "$SRC_PATH"
+      cd -
+    env:
+      SRC_PATH: "${{ parameters.ArtifactPath }}"
+    displayName: "Create artifacts.tar.gz"
+
+    # -----------------------------------------------------------------------------------------------------------
+    # PUBLISH ARTIFACTS (artifacts.tar.gz)
+    # -----------------------------------------------------------------------------------------------------------
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: "${{ parameters.ArtifactPath }}/artifacts.tar.gz"
+      ArtifactName: "drop"
+      publishLocation: "Container"
+    displayName: "Publish Artifact: drop"

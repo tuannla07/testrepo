@@ -1,0 +1,45 @@
+############################################################################################################
+# This template sets the build number for the current build in Azure DevOps.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - Version: The version string containing 'x' as a placeholder for the build version.
+# - BuildVersion: The build version number to replace 'x' in the Version string.
+##############################################################################################################
+
+parameters:
+  - name: "Version"
+    type: string
+  - name: "BuildVersion"
+    type: string
+
+steps:
+  - script: |
+      set -euo pipefail
+
+      version="${{ parameters.Version }}"
+      buildVersion="${{ parameters.BuildVersion }}"
+
+      # Validate that version is not empty
+      if [[ -z "$version" ]]; then
+        echo "❌ Error: Version parameter is empty."
+        exit 1
+      fi
+
+      # Validate that buildVersion is a number and not empty
+      if ! [[ "$buildVersion" =~ ^[0-9]+$ ]]; then
+        echo "❌ Error: BuildVersion must be a non-empty number."
+        exit 1
+      fi
+
+      newName="${version/x/$buildVersion}"
+
+      echo "Setting build number to: $newName"
+
+      curl -X PATCH \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $(System.AccessToken)" \
+        https://dev.azure.com/omnia-source/Omnia/_apis/build/builds/$(Build.BuildId)?api-version=7.2-preview.3 \
+        -d "{\"buildNumber\": \"$newName\"}"
+    displayName: "Set build number (title)"
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)

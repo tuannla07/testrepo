@@ -1,0 +1,43 @@
+parameters:
+  - name: Version
+    type: string
+    default: "1.0.0-preview.$(Build.BuildNumber)"
+
+  - name: "PoolName"
+    type: string
+    default: "Omnia Agents"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+stages:
+  - stage: BuildProd
+    jobs:
+      - job: BuildJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        variables:
+          NODE_OPTIONS: "--max-old-space-size=16384" # Increase Node.js memory limit
+        steps:
+          - checkout: OmniaPipelines
+          - checkout: omniaVideoService
+
+          # -----------------------------------------------------------------------------------------------------------
+          # Init the build agent with .net, node, omnia cli
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/generic-init-dotnet-omnia-npm.yml
+            parameters:
+              dotnetVersion: "9.0.101"
+              Tag: $Tag
+
+          - template: ../templates/generic-rename-source-folders.yml
+            parameters:
+              RepositoryName: "OmniaVideoService"
+
+          - template: ../templates/generic-extension-build-to-artifacts.yml
+            parameters:
+              Version: ${{ parameters.Version }}
+              ExtensionPath: "$(Build.SourcesDirectory)/omniavideoservice/src/extension.json"
+              PublishPath: "$(Build.ArtifactStagingDirectory)"
+              OmniaHome: "$(HOME)/.dotnet/tools"
+              DisplayName: "Omnia Video Service"

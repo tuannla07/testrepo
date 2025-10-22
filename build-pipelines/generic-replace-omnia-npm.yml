@@ -1,0 +1,132 @@
+#############################################################################
+# This pipeline updates NPM package versions in the specified repository's
+# package.json files based on the provided version parameter.
+# It can also update the version field in package.json if specified.
+#-------------------------------------------------------------------------------
+# Parameters:
+# - PoolName: The name of the agent pool to use (default: "Azure Pipelines")
+# - Version: The version to set for the packages (e.g., 1.0.0)
+# - RepositoryName: Name of the repository to update (default: "OmniaMono")
+# - ReplaceInVersion: Boolean indicating whether to replace the version field in package.json (default: true)
+############################################################################################################
+
+parameters:
+  - name: "PoolName"
+    type: string
+    default: "Azure Pipelines"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+  - name: Version
+    type: string
+    default: ""
+
+  - name: RepositoryName
+    type: string
+    default: "OmniaMono"
+
+  - name: ReplaceInVersion
+    type: boolean
+    default: true
+
+stages:
+  - stage: UpdateNpmPackageVersions
+    displayName: "Update NPM Package Versions"
+    jobs:
+      - job: UpdateNpmPackageVersionsJob
+        displayName: "Update NPM Package Versions"
+        pool:
+          name: ${{ parameters.PoolName }}
+        steps:
+          - checkout: OmniaPipelines
+          - checkout: OmniaMono
+
+          - script: git --version
+            displayName: "Check Git version"
+
+          - script: |
+              set -euo pipefail
+
+              # Set version number in template file
+              cd $(Build.SourcesDirectory)/OmniaPipelines/resources
+              jq '.toReplace |= with_entries(if .value == "BuildNumber" then .value = "${{parameters.Version}}" else . end)' omnia-release-versions-toReplace.json > temp.json && mv -f temp.json omnia-release-versions-toReplace.json
+              cd -
+
+              # Get all package.json paths
+              mapfile -t paths < <(find "$(Build.SourcesDirectory)/${{ parameters.RepositoryName }}/src" -name package.json -exec dirname {} \; | sed "s|$(Build.SourcesDirectory)/${{ parameters.RepositoryName }}/src/||")
+              for pkg_path in "${paths[@]}"; do
+                echo "Version replacement in - $pkg_path"
+                cd "$(Build.SourcesDirectory)/${{ parameters.RepositoryName }}/src/$pkg_path" || exit 1
+
+                echo "Replacing version in .dependencies"
+                jq --slurpfile toReplace $(Build.SourcesDirectory)/OmniaPipelines/resources/omnia-release-versions-toReplace.json \
+                  '.dependencies |= with_entries(if .key | in($toReplace[0].toReplace) then .value = $toReplace[0].toReplace[.key] else . end)' package.json > temp.json && mv -f temp.json package.json
+
+                echo "Replacing version in .devDependencies"
+                jq --slurpfile toReplace $(Build.SourcesDirectory)/OmniaPipelines/resources/omnia-release-versions-toReplace.json \
+                  '.devDependencies |= with_entries(if .key | in($toReplace[0].toReplace) then .value = $toReplace[0].toReplace[.key] else . end)' package.json > temp.json && mv -f temp.json package.json
+
+                if [ "${{ parameters.ReplaceInVersion }}" = "true" ]; then
+                  echo "Replacing version in .version"
+                  jq '.version = "${{ parameters.Version }}"' package.json > temp.json && mv -f temp.json package.json
+                else
+                  echo "Skipping version replacement because Should is false."
+                fi
+
+                rm temp.json || echo "No temp.json to remove"
+
+                cd - || exit 1
+              done
+
+            displayName: "Update package.json versions"
+
+          - script: |
+              set -euo pipefail
+              cd "$(Build.SourcesDirectory)/${{ parameters.RepositoryName }}"
+              git status
+            displayName: "Check for changes"
+
+          - script: |
+              set -euo pipefail
+              cd "$(Build.SourcesDirectory)/${{ parameters.RepositoryName }}"
+
+              if git status --porcelain | grep .; then
+                git config user.email "buildagent@omniaintranet.com"
+                git config user.name "Build Agent"
+
+                BRANCH="system/$(Build.SourceBranchName)/npm-package-version-update-$(Build.BuildId)"
+                git checkout -b "$BRANCH"
+
+                git add .
+                git commit -m "Update package versions to ${{ parameters.Version }}"
+
+                # Use GitHub PAT to authenticate push
+                git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/omniaintranet/${{ parameters.RepositoryName }}.git
+
+                echo "Pushing branch $BRANCH to GitHub..."
+                git push origin "$BRANCH"
+
+                echo "Creating GitHub Pull Request..."
+
+                REVIEWERS_ARG=""
+                if [[ -n "$(PrReviewers)" ]]; then
+                  REVIEWERS_ARG="--reviewer $(PrReviewers)"
+                fi
+
+                # Use GitHub CLI to create PR
+                gh pr create \
+                  --title "Update package versions to ${{ parameters.Version }}" \
+                  --body "Automated version update from pipeline build $(Build.BuildId)" \
+                  --base $(Build.SourceBranchName) \
+                  --head "$BRANCH" \
+                  $REVIEWERS_ARG
+
+                echo "Added a PR in branch $BRANCH for review."
+
+              else
+                echo "No changes detected, skipping commit, push, and PR creation."
+              fi
+            displayName: "Commit, push and create GitHub PR"
+            env:
+              GH_TOKEN: $(OmniaGithubToken) # Or the name of your PAT secret in pipeline

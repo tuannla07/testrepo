@@ -1,0 +1,8 @@
+{
+    "OmniaSSO":{
+        "OverrideOmniaUrl": "Omnia anpassad adress",
+        "OverideOmniaUrlHelp": "Om ni använder en anpassad adress till Omnia ange den här",
+        "AuthorizeWithOmnia": "Auktorisera med Omnia"
+
+    }
+}

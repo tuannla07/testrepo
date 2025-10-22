@@ -1,0 +1,16 @@
+{
+    "toReplace": {
+        "@omnia/fx": "BuildNumber",
+        "@omnia/fx-models": "BuildNumber",
+        "@omnia/fx-msteams": "BuildNumber",
+        "@omnia/fx-sp": "BuildNumber",
+        "@omnia/fx-sp-models": "BuildNumber",
+        "@omnia/fx-spfx": "BuildNumber",
+        "@omnia/tooling": "BuildNumber",
+        "@omnia/tooling-composers": "BuildNumber",
+        "@omnia/tooling-vue": "BuildNumber",
+        "@omnia/mobile": "BuildNumber",
+        "@omnia/workplace": "BuildNumber",
+        "@omnia/wcm": "BuildNumber"
+    }
+}

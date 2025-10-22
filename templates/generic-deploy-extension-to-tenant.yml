@@ -1,0 +1,48 @@
+############################################################################################################
+# Generic Deploy Extension to Tenant Template
+#-----------------------------------------------------------------------------------------------------------
+# This template deploys a specified extension version to a tenant.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - ExtensionId: The ID of the extension to deploy (e.g., Guid)
+# - Version: The version of the extension to deploy (e.g., 1.0.0)
+# - TenantId: The ID of the tenant to deploy the extension to (e.g., Guid)
+# - ExtensionName: The name of the extension (default: "N/A")
+############################################################################################################
+
+parameters:
+  - name: ExtensionId
+    type: string
+
+  - name: Version
+    type: string
+
+  - name: TenantId
+    type: string
+
+  - name: ExtensionName
+    type: string
+    default: "N/A"
+
+steps:
+  - script: |
+      set -euo pipefail
+
+      if [ -z "${{ parameters.ExtensionId }}" ]; then
+        echo "ExtensionId is not set. Please provide a valid ExtensionId."
+        exit 1
+      fi
+
+      if [ -z "${{ parameters.Version }}" ]; then
+        echo "Version is not set. Ignoring version deployment."
+        exit 0
+      fi
+
+      if [ -z "${{ parameters.TenantId }}" ]; then
+        echo "TenantId is not set. Please provide a valid TenantId."
+        exit 1
+      fi
+
+      echo "To ${{ parameters.ExtensionId }}:${{ parameters.Version }} to tenant with id: ${{ parameters.TenantId }}"
+      $HOME/.dotnet/tools/omnia extensions deploy "${{ parameters.ExtensionId }}:${{ parameters.Version }}" --tenantid ${{ parameters.TenantId }} --ignore-status-check
+    displayName: "Deploy to ${{ parameters.ExtensionName }}"

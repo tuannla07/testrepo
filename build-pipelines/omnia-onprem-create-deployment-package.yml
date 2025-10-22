@@ -1,0 +1,56 @@
+parameters:
+  - name: Version
+    type: string
+    default: "1.0.0.0-preview.$(Build.BuildNumber)"
+
+  - name: "PoolName"
+    type: string
+    default: "Omnia Agents"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+stages:
+  - stage: BuildProd
+    jobs:
+      - job: BuildJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        variables:
+          NODE_OPTIONS: "--max-old-space-size=16384" # Increase Node.js memory limit
+        steps:
+          - checkout: OmniaPipelines
+
+          # -----------------------------------------------------------------------------------------------------------
+          # Download Localization Artifacts
+          # -----------------------------------------------------------------------------------------------------------
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Localization Artifact'
+            inputs:
+              buildType: specific
+              project: '02cb4793-c193-4e54-9ac7-b5423f65dd3f' # Omnia OnPrem project
+              definition: 125 # localization build pipeline ID
+              specificBuildWithTriggering: true
+              artifactName: locs
+              targetPath: '$(System.ArtifactsDirectory)/locs'
+
+          # -----------------------------------------------------------------------------------------------------------
+          # Download Omnia Mono Artifacts
+          # -----------------------------------------------------------------------------------------------------------
+          - task: DownloadBuildArtifacts@1
+            displayName: 'Download Omnia Mono Artifact'
+            inputs:
+              buildType: specific
+              project: '02cb4793-c193-4e54-9ac7-b5423f65dd3f'
+              pipeline: 103
+              artifactName: omnia
+              downloadPath: '$(System.ArtifactsDirectory)/deployment/packages/omnia'
+              extractTars: false
+
+          # -----------------------------------------------------------------------------------------------------------
+          # Build Deployment Package folder structure
+          # -----------------------------------------------------------------------------------------------------------
+          - script: |
+              npm install fs-extra
+              node "$(Build.SourcesDirectory)/omniapipelines/onprem/scripts/omnia-package-copy-pipeline-artifacts.js"
+            displayName: "Install NPM packages"

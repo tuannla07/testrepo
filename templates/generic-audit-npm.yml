@@ -1,0 +1,123 @@
+############################################################################################################
+# Generic NPM Audit Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template performs a security audit of NPM packages in the specified repository.
+# It checks for vulnerabilities based on the defined severity filter and logs issues if found.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - RepositoryName: Name of the repository to audit (e.g., OmniaMono)
+# - SeverityFilterNpm: Minimum severity level of vulnerabilities to report (default: high)
+############################################################################################################
+
+parameters:
+  - name: RepositoryName
+    type: string
+    default: ""
+
+  - name: SeverityFilterNpm
+    type: string
+    default: "high"
+    values:
+      - "critical"
+      - "high"
+      - "moderate"
+      - "low"
+
+steps:
+  - checkout: OmniaPipelines
+  - checkout: OmniaMono
+
+  # -----------------------------------------------------------------------------------------------------------
+  # Init the build agent with .net, node, omnia cli
+  # -----------------------------------------------------------------------------------------------------------
+  - template: ../templates/generic-init-dotnet-omnia-npm.yml
+    parameters:
+      dotnetVersion: "9.0.101"
+      ExcludeNpmInstall: true
+
+  - template: ../templates/generic-rename-source-folders.yml
+    parameters:
+      RepositoryName: ${{ parameters.RepositoryName }}
+
+  - script: |
+      cd "$(Build.SourcesDirectory)/omniapipelines/scripts"
+      npm install
+      cd -
+    displayName: "Install NPM packages"
+
+  - task: NuGetAuthenticate@1
+    displayName: "NuGet Authenticate"
+
+  - script: |
+      echo "$(npmFeedConnection):_authToken=$(VSS_NUGET_ACCESSTOKEN)" > ~/.npmrc
+    displayName: "NPM Authenticate"
+
+  - script: |
+      # ensures the script stops and the step fails if any command fails.
+      set -euo pipefail
+      # cd "$(Build.SourcesDirectory)/$(RepositoryNameLowered)/src"
+      # $HOME/.dotnet/tools/omnia restore
+
+      # this will install all packages in each package.json found in the src directory and its subdirectories and save the paths to output.json
+      node "$(Build.SourcesDirectory)/omniapipelines/scripts/generic-npm-install.mjs" "$(Build.SourcesDirectory)/$(RepositoryNameLowered)/src" "$(Build.SourcesDirectory)/$(RepositoryNameLowered)/src/output.json"
+    displayName: "Npm - All packages restore"
+
+  - script: |
+      set -euo pipefail
+      cd "$(Build.SourcesDirectory)/$(RepositoryNameLowered)/src"
+
+      # Set default severity level (can be overridden by pipeline variable)
+      severityFilter="${SeverityFilterNpm:-high}"  # Options: low, moderate, high, critical
+
+      # Path to JSON file containing package.json paths
+      packageListFile="output.json"
+
+      if [[ ! -f "$packageListFile" ]]; then
+        echo "❌ JSON file not found: $packageListFile"
+        exit 1
+      fi
+
+      # Read package paths from JSON and audit each
+      jq -r '.[]' "$packageListFile" | while read packageJsonPath; do
+        dir=$(dirname "$packageJsonPath")
+        echo "🔍 Auditing NPM packages in: $dir"
+
+        pushd "$dir" > /dev/null
+
+        # Ensure dependencies are installed
+        if [[ ! -d "node_modules" ]]; then
+          echo "📦 Installing dependencies in: $dir"
+          npm ci || npm install
+        fi
+
+        # Run audit and collect JSON output
+        auditOutput=$(npm audit --json || true)
+
+        # Check for matching vulnerabilities
+        vulns=$(echo "$auditOutput" | jq --arg severity "$severityFilter" '
+          .advisories? // .vulnerabilities? // {} |
+          to_entries |
+          map(select((.value.severity) == $severity))
+        ')
+
+        vulnCount=$(echo "$vulns" | jq 'length')
+
+        if [[ "$vulnCount" -gt 0 ]]; then
+          echo "##vso[task.logissue type=error]Found $vulnCount $severityFilter vulnerabilities in $dir"
+          echo "$vulns" | jq -r '
+            .[] |
+            "##vso[task.logissue type=error]Package: \(.value.name) - Severity: \(.value.severity) - URL: \(.value.url // "n/a")"
+          '
+          popd > /dev/null
+          exit 1  # Fail fast
+        else
+          echo "✅ No $severityFilter vulnerabilities in $dir"
+        fi
+
+        popd > /dev/null
+      done
+
+      echo "##vso[task.complete result=Succeeded;]All NPM projects audited - No $severityFilter vulnerabilities found"
+      cd -
+      exit 0
+    displayName: "Run NPM Audit"

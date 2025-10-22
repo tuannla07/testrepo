@@ -1,0 +1,160 @@
+############################################################################################################
+# This template triggers a new release of a build pipeline with specified parameters.
+# It polls the pipeline run until completion and sets the LatestReleaseVersionTag variable upon success.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - DefinitionId: The ID of the pipeline definition to trigger.
+# - BuildConfigUsedInRelease: The build configuration to use for the release.
+# - BuildPoolUsedInRelease: The build pool to use for the release.
+# - SourceBranch: The source branch to use for the release.
+# - TimeoutMinutes: The timeout in minutes to wait for the pipeline to complete (default: 30).
+# - ShouldBuild: A boolean indicating whether to trigger the build (default: false).
+############################################################################################################
+
+parameters:
+  - name: DefinitionId
+  - name: BuildConfigUsedInRelease
+  - name: BuildPoolUsedInRelease
+  - name: SourceBranch
+  - name: TimeoutMinutes
+    default: 60 # Default timeout in minutes
+  - name: ShouldBuild
+    default: false
+
+  # Variable set in this pipeline
+  # - LatestReleaseVersionTag
+  #   type: string
+  #   default: ""
+
+  # ------------------------------------
+  # Variables to be set by this template
+  # ------------------------------------
+
+steps:
+  - script: |
+      set -euo pipefail
+
+      echo "Variables:"
+      echo "  ShouldBuild: ${{ parameters.ShouldBuild }}"
+      echo "  BuildConfigUsedInRelease: ${{ parameters.BuildConfigUsedInRelease }}"
+      echo "  BuildPoolUsedInRelease: ${{ parameters.BuildPoolUsedInRelease }}"
+      echo "  SourceBranch: ${{ parameters.SourceBranch }}"
+
+      echo "Running a new release of build..."
+
+      if [[ ${{ parameters.ShouldBuild }} == false ]]; then
+        echo "No need to build a new release. Already on latest."
+        exit 0
+      fi
+
+      echo "Preparing to trigger new release..."
+
+      # Variables
+      TIMEOUT_MINUTES=${{ parameters.TimeoutMinutes }}  # Timeout in minutes
+      POLL_INTERVAL=15                                  # Polling interval in seconds
+
+      # Parameter values
+      BUILD_CONFIG="${{ parameters.BuildConfigUsedInRelease }}"  
+      POOL_NAME="${{ parameters.BuildPoolUsedInRelease }}"
+
+      # Construct JSON payload for Pipelines API
+      PARAMS=$(jq -n \
+        --arg bc "$BUILD_CONFIG" \
+        --arg pool "$POOL_NAME" \
+        '{
+          resources: {
+            repositories: {
+              self: {
+                refName: "${{ parameters.SourceBranch }}"
+              }
+            }
+          },
+          templateParameters: {
+            BuildConfiguration: $bc,
+            PoolName: $pool
+          }
+        }'
+      )
+
+      # Trigger the pipeline
+      echo "Triggering pipeline ${{ parameters.DefinitionId }}..."
+
+      response=$(curl -s -u :$(System.AccessToken) \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d '{
+              "definition": {
+                "id": ${{ parameters.DefinitionId }}
+              },
+              "parameters": "{ 
+                \"BuildConfiguration\": \"${{ parameters.BuildConfigUsedInRelease }}\", 
+                \"PoolName\": \"${{ parameters.BuildPoolUsedInRelease }}\"
+              }"
+            }' \
+        https://dev.azure.com/omnia-source/omnia/_apis/build/builds?api-version=7.1-preview.7)
+
+      # response=$(curl -s -u :$(System.AccessToken) \
+      #   -X POST \
+      #   -H "Content-Type: application/json" \
+      #   -d "$PARAMS" \
+      #   "https://dev.azure.com/omnia-source/omnia/_apis/pipelines/${{ parameters.DefinitionId }}/runs?api-version=7.1-preview.1")
+
+      # Extract run ID
+      run_id=$(echo "$response" | jq -r '.id')
+
+      if [[ "$run_id" == "null" || -z "$run_id" ]]; then
+        echo "Failed to trigger pipeline. Response: $response"
+        exit 1
+      fi
+
+      echo "Triggered pipeline run with ID: $run_id"
+
+      # Poll for completion
+      start_time=$(date +%s)
+      timeout_seconds=$((TIMEOUT_MINUTES * 60))
+
+      while true; do
+        status_response=$(curl -s -u :$(System.AccessToken) \
+          "https://dev.azure.com/omnia-source/omnia/_apis/pipelines/${{ parameters.DefinitionId }}/runs/$run_id?api-version=7.1-preview.1")
+
+        # Parse JSON with error handling
+        status=$(echo "$status_response" | jq -e -r '.state' 2>/dev/null || echo "unknown")
+        result=$(echo "$status_response" | jq -e -r '.result' 2>/dev/null || echo "unknown")
+
+        echo "Current status: $status, result: $result"
+
+        if [[ "$status" == "completed" ]]; then
+          if [[ "$result" == "succeeded" ]]; then
+            echo "Pipeline completed successfully."
+            response=$(curl -s -u :$(System.AccessToken) "https://dev.azure.com/omnia-source/Omnia/_apis/build/builds/$run_id/tags")
+            version_tag=$(echo "$response" | jq -e -r '.value[0]' 2>/dev/null || echo "unknown")
+
+            if [[ "$version_tag" == "unknown" || -z "$version_tag" ]]; then
+              echo "Failed to retrieve version tag."
+              exit 1
+            fi      
+
+            echo "   Got the new tag: $version_tag"
+            echo "##vso[task.setvariable variable=LatestReleaseVersionTag]$version_tag"
+            exit 0
+          else
+            echo "Pipeline completed with result: $result"
+            exit 1
+          fi
+        fi
+
+        now=$(date +%s)
+        elapsed=$((now - start_time))
+
+        if (( elapsed > timeout_seconds )); then
+          echo "Timeout reached while waiting for pipeline to finish."
+          exit 1
+        fi
+
+        sleep $POLL_INTERVAL
+      done
+
+    displayName: "Running a new release of build"
+    condition: eq(variables['ShouldBuild'], 'true')
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)

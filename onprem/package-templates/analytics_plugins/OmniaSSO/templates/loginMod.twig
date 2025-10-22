@@ -1,0 +1,12 @@
+{# This is right below the 'forgot password' #}
+
+<hr />
+
+<div class="center-align">
+    <form method="post" action="{{ linkTo({'module': 'OmniaSSO', 'action': 'validateAuth'}) }}">
+        <input type="hidden" name="form_nonce" value="{{ nonce }}" />
+        <button class="btn" type="submit">
+            {{ caption }}
+        </button>
+    </form>
+</div>

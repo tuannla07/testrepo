@@ -1,0 +1,25 @@
+############################################################################################################
+# This template renames source folders to lowercase versions.
+# This is required because some tools (like Omnia CLI) expect lowercase folder names.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - RepositoryName: Name of the repository to rename (e.g., OmniaMono)
+############################################################################################################
+
+parameters:
+  - name: RepositoryName
+    type: string
+    default: "OmniaMono"
+
+steps:
+  - script: |
+      echo "##vso[task.setvariable variable=RepositoryNameLowered]$(echo '${{ parameters.RepositoryName }}' | tr '[:upper:]' '[:lower:]')"
+    displayName: "Set RepositoryNameLowered variable"
+
+  - script: |
+      # Required because Omnia CLI are taking toLower() on the folder path
+      cd "$(Build.SourcesDirectory)"
+      mv "${{ parameters.RepositoryName }}" "$(RepositoryNameLowered)"
+      mv OmniaPipelines omniapipelines
+      cd -
+    displayName: "Rename source folders"

@@ -1,0 +1,53 @@
+############################################################################################################
+# This template ensures that a version variable is set based on the provided
+# MainVersion, BuildNumber, and Tag parameters.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - MainVersion: The main version string (e.g., "1.0")
+# - BuildNumber: The build number to append to the version (e.g., "42")
+# - Tag: The tag to use for pre-release versions (e.g., "dev", "latest")
+############################################################################################################
+
+parameters:
+  - name: BuildNumber
+    type: string
+    default: ""
+
+  - name: Tag
+    type: string
+
+  - name: MainVersion
+    type: string
+
+steps:
+  - script: |
+      # NOTE: The variable is set and available after this script block has executed
+      #       but not available in the script block itself.
+      #       This is a limitation of the Azure DevOps pipeline.
+      set -euo pipefail
+
+      if [[ -z "${{ parameters.MainVersion }}" ]]; then
+        echo "Error: MainVersion is null or empty."
+        exit 1
+      fi
+
+      if [[ -z "${{ parameters.BuildNumber }}" ]]; then
+        echo "Error: BuildNumber is null or empty."
+        exit 1
+      fi
+
+      if [[ -z "${{ parameters.Tag }}" ]]; then
+        echo "Error: Tag is null or empty."
+        exit 1
+      fi
+
+      if [[ -n "${{ parameters.Tag }}" && "${{ parameters.Tag }}" == "latest" ]]; then
+        echo "##vso[task.setvariable variable=Version]${{ parameters.MainVersion }}.${{ parameters.BuildNumber }}"
+        echo "Version set to: ${{ parameters.MainVersion }}.${{ parameters.BuildNumber }}"
+
+      else
+        echo "##vso[task.setvariable variable=Version]${{ parameters.MainVersion }}.0-${{ parameters.Tag }}.${{ parameters.BuildNumber }}"
+        echo "Version set to: ${{ parameters.MainVersion }}.0-${{ parameters.Tag }}.${{ parameters.BuildNumber }}"
+
+      fi
+    displayName: "Ensure Version"

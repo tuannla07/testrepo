@@ -1,0 +1,127 @@
+############################################################################################################
+# Omnia Release Extensions Migration Workers Build to Repository and Cloud Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template builds Omnia migration worker extensions and pushes them to the specified Omnia Cloud environment
+# as well as to the AKS repository.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - Version: The version of the extensions to build and push
+# - ClientId: The client ID for Omnia Cloud authentication
+# - ClientSecret: The client secret for Omnia Cloud authentication
+# - Intent: The intent for the Omnia Cloud environment (default: "dev")
+# - Environment: The Omnia Cloud environment to push to (default: "dev")
+# - CloudApiAppId: The App ID for the Cloud API
+# - CloudApiUrl: The URL for the Cloud API
+# - ApiAppBase: The base URL for the API app
+# - CliAppId: The CLI App ID for Omnia Cloud authentication
+#############################################################################################################
+
+parameters:
+  - name: Version
+    type: string
+    default: "0"
+
+  - name: ClientId
+    type: string
+    default: ""
+
+  - name: ClientSecret
+    type: string
+    default: ""
+
+  - name: Intent
+    type: string
+    default: "dev"
+
+  - name: Environment
+    type: string
+    default: "dev"
+
+  - name: CloudApiAppId
+    type: string
+    default: ""
+
+  - name: CloudApiUrl
+    type: string
+    default: ""
+
+  - name: ApiAppBase
+    type: string
+    default: ""
+
+  - name: CliAppId
+    type: string
+    default: ""
+
+steps:
+  # -----------------------------------------------------------------------------------------------------------
+  # BUILD OMNIA MIGRATION WORKER EXTENSION
+  # -----------------------------------------------------------------------------------------------------------
+  - template: generic-extension-build-to-repository-and-cloud.yml
+    parameters:
+      Version: "${{parameters.Version}}"
+      ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/omnia/migration-worker-extension.json"
+      ExtensionId: "9d44a06d-2702-4fa4-bc87-5b2ebe39403c"
+      Intent: "${{parameters.Intent}}"
+      Environment: "${{parameters.Environment}}"
+      CloudClientId: "${{parameters.ClientId}}"
+      CloudClientSecret: "${{parameters.ClientSecret}}"
+      CloudApiAppId: ""
+      CloudApiUrl: ""
+      ApiAppBase: ""
+      CliAppId: ""
+      ExtensionName: "Omnia"
+
+  # -----------------------------------------------------------------------------------------------------------
+  # BUILD WORKPLACE MIGRATION WORKER EXTENSION
+  # -----------------------------------------------------------------------------------------------------------
+  - template: generic-extension-build-to-repository-and-cloud.yml
+    parameters:
+      Version: "${{parameters.Version}}"
+      ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/workplace/migration-worker-extension.json"
+      ExtensionId: "8177832b-6142-488f-8d1f-665579439872"
+      Intent: "${{parameters.Intent}}"
+      Environment: "${{parameters.Environment}}"
+      CloudClientId: "${{parameters.ClientId}}"
+      CloudClientSecret: "${{parameters.ClientSecret}}"
+      CloudApiAppId: ""
+      CloudApiUrl: ""
+      ApiAppBase: ""
+      CliAppId: ""
+      ExtensionName: "Workplace"
+
+  # -----------------------------------------------------------------------------------------------------------
+  # BUILD WCM MIGRATION WORKER EXTENSION
+  # -----------------------------------------------------------------------------------------------------------
+  - template: generic-extension-build-to-repository-and-cloud.yml
+    parameters:
+      Version: "${{parameters.Version}}"
+      ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/webcontentmanagement/migration-worker-extension.json"
+      ExtensionId: "aae2ba34-df89-40f0-ab35-06d872291e91"
+      Intent: "${{parameters.Intent}}"
+      Environment: "${{parameters.Environment}}"
+      CloudClientId: "${{parameters.ClientId}}"
+      CloudClientSecret: "${{parameters.ClientSecret}}"
+      CloudApiAppId: ""
+      CloudApiUrl: ""
+      ApiAppBase: ""
+      CliAppId: ""
+      ExtensionName: "WCM"
+
+  # -----------------------------------------------------------------------------------------------------------
+  # BUILD MS MIGRATION WORKER EXTENSION
+  # -----------------------------------------------------------------------------------------------------------
+  - template: generic-extension-build-to-repository-and-cloud.yml
+    parameters:
+      Version: "${{parameters.Version}}"
+      ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/managementsystem/migration-worker-extension.json"
+      ExtensionId: "5c0b2905-a638-4c51-8172-171d5d6dbc6b"
+      Intent: "${{parameters.Intent}}"
+      Environment: "${{parameters.Environment}}"
+      CloudClientId: "${{parameters.ClientId}}"
+      CloudClientSecret: "${{parameters.ClientSecret}}"
+      CloudApiAppId: ""
+      CloudApiUrl: ""
+      ApiAppBase: ""
+      CliAppId: ""
+      ExtensionName: "MS"

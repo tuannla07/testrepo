@@ -1,0 +1,98 @@
+############################################################################################################
+# Omnia Build and Push Extension to Cloud Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template builds Omnia extensions and pushes them to the specified Omnia Cloud environment.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - Tag: The tag to use for the build (e.g., "dev", "latest")
+# - Version: The version of the extensions to build and push
+# - DropName: The name of the drop artifact to download and unpack (default: "drop")
+# - CloudClientId: The client ID for Omnia Cloud authentication
+# - CloudClientSecret: The client secret for Omnia Cloud authentication
+# - CloudApiAppId: The App ID for the Cloud API
+# - CloudApiUrl: The URL for the Cloud API
+# - ApiAppBase: The base URL for the API app
+# - CliAppId: The CLI App ID for Omnia Cloud authentication
+# - Intent: The intent for the Omnia Cloud environment (default: "prod")
+# - Environment: The Omnia Cloud environment to push to (default: "prod")
+#############################################################################################################
+
+parameters:
+  - name: Tag
+    type: string
+
+  - name: Version
+    type: string
+
+  - name: DropName
+    type: string
+    default: "drop"
+
+  - name: CloudClientId
+    type: string
+
+  - name: CloudClientSecret
+    type: string
+
+  - name: CloudApiAppId
+    type: string
+    default: ""
+
+  - name: CloudApiUrl
+    type: string
+    default: ""
+
+  - name: ApiAppBase
+    type: string
+    default: ""
+
+  - name: CliAppId
+    type: string
+    default: ""
+
+  - name: Intent
+    type: string
+    default: "prod"
+    values:
+      - "prod"
+      - "test"
+      - "dev"
+
+  - name: Environment
+    type: string
+    default: "prod"
+    values:
+      - "prod"
+      - "test"
+      - "dev"
+
+steps:
+  # -----------------------------------------------------------------
+  # init dotnet and npm, and omnia cli
+  # Download and unzip drop
+  # -----------------------------------------------------------------
+  - template: generic-init-dotnet-omnia-npm.yml
+    parameters:
+      dotnetVersion: "9.0.101"
+      Tag: ${{ parameters.Tag }}
+
+  - template: generic-download-and-unpack-drop.yml
+    parameters:
+      DropName: ${{ parameters.DropName }}
+      WorkspacePath: "$(Pipeline.Workspace)"
+      StripComponents: 4
+
+  # -----------------------------------------------------------------
+  # Build Omnia - Docker image and publish to AZ Container Registry
+  # -----------------------------------------------------------------
+  - template: omnia-release-extensions-all-build-to-repository-and-cloud.yml
+    parameters:
+      Version: "${{ parameters.Version }}"
+      ClientId: "${{ parameters.CloudClientId }}"
+      ClientSecret: "${{ parameters.CloudClientSecret }}"
+      Intent: "${{ parameters.Intent }}"
+      Environment: "${{ parameters.Environment }}"
+      CloudApiAppId: "${{ parameters.CloudApiAppId }}" # Only used if environment is custom
+      CloudApiUrl: "${{ parameters.CloudApiUrl }}" # Only used if environment is custom
+      ApiAppBase: "${{ parameters.ApiAppBase }}" # Only used if environment is custom
+      CliAppId: "${{ parameters.CliAppId }}" # Only used if environment is custom

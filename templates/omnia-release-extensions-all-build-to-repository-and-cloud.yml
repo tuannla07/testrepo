@@ -1,0 +1,127 @@
+#############################################################################################################
+# Omnia Release Extensions All Build to Repository and Cloud Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template builds all Omnia extensions and pushes them to the specified Omnia Cloud environment
+# as well as to the AKS repository.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - Version: The version of the extensions to build and push
+# - ClientId: The client ID for Omnia Cloud authentication
+# - ClientSecret: The client secret for Omnia Cloud authentication
+# - Intent: The intent for the Omnia Cloud environment (default: "dev")
+# - Environment: The Omnia Cloud environment to push to (default: "dev")
+# - CloudApiAppId: The App ID for the Cloud API
+# - CloudApiUrl: The URL for the Cloud API
+# - ApiAppBase: The base URL for the API app
+# - CliAppId: The CLI App ID for Omnia Cloud authentication
+#############################################################################################################
+
+parameters:
+  - name: Version
+    type: string
+    default: "0"
+
+  - name: ClientId
+    type: string
+    default: ""
+
+  - name: ClientSecret
+    type: string
+    default: ""
+
+  - name: Intent
+    type: string
+    default: "dev"
+
+  - name: Environment
+    type: string
+    default: "dev"
+
+  - name: CloudApiAppId
+    type: string
+    default: ""
+
+  - name: CloudApiUrl
+    type: string
+    default: ""
+
+  - name: ApiAppBase
+    type: string
+    default: ""
+
+  - name: CliAppId
+    type: string
+    default: ""
+
+steps:
+  # -----------------------------------------------------------------------------------------------------------
+  # BUILD OMNIA EXTENSION
+  # -----------------------------------------------------------------------------------------------------------
+  - template: generic-extension-build-to-repository-and-cloud.yml
+    parameters:
+      Version: "${{parameters.Version}}"
+      ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/omnia/extension.json"
+      ExtensionId: "aa000000-0000-aaaa-0000-0000000000aa"
+      Intent: "${{parameters.Intent}}"
+      Environment: "${{parameters.Environment}}"
+      CloudClientId: "${{parameters.ClientId}}"
+      CloudClientSecret: "${{parameters.ClientSecret}}"
+      CloudApiAppId: ""
+      CloudApiUrl: ""
+      ApiAppBase: ""
+      CliAppId: ""
+      ExtensionName: "Omnia"
+
+  # -----------------------------------------------------------------------------------------------------------
+  # BUILD WORKPLACE EXTENSION
+  # -----------------------------------------------------------------------------------------------------------
+  - template: generic-extension-build-to-repository-and-cloud.yml
+    parameters:
+      Version: "${{parameters.Version}}"
+      ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/workplace/extension.json"
+      ExtensionId: "d5bf3472-ddc6-44a9-b78b-6c52b2dfedea"
+      Intent: "${{parameters.Intent}}"
+      Environment: "${{parameters.Environment}}"
+      CloudClientId: "${{parameters.ClientId}}"
+      CloudClientSecret: "${{parameters.ClientSecret}}"
+      CloudApiAppId: ""
+      CloudApiUrl: ""
+      ApiAppBase: ""
+      CliAppId: ""
+      ExtensionName: "Workplace"
+
+  # -----------------------------------------------------------------------------------------------------------
+  # BUILD WCM EXTENSION
+  # -----------------------------------------------------------------------------------------------------------
+  - template: generic-extension-build-to-repository-and-cloud.yml
+    parameters:
+      Version: "${{parameters.Version}}"
+      ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/webcontentmanagement/extension.json"
+      ExtensionId: "ff629048-1044-4cd5-b0d5-1e2f920f6374"
+      Intent: "${{parameters.Intent}}"
+      Environment: "${{parameters.Environment}}"
+      CloudClientId: "${{parameters.ClientId}}"
+      CloudClientSecret: "${{parameters.ClientSecret}}"
+      CloudApiAppId: ""
+      CloudApiUrl: ""
+      ApiAppBase: ""
+      CliAppId: ""
+      ExtensionName: "WCM"
+
+  # -----------------------------------------------------------------------------------------------------------
+  # BUILD MS EXTENSION
+  # -----------------------------------------------------------------------------------------------------------
+  - template: generic-extension-build-to-repository-and-cloud.yml
+    parameters:
+      Version: "${{parameters.Version}}"
+      ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/managementsystem/extension.json"
+      ExtensionId: "4d5013fe-0c01-4e7c-9664-b7f28e9013e3"
+      Intent: "${{parameters.Intent}}"
+      Environment: "${{parameters.Environment}}"
+      CloudClientId: "${{parameters.ClientId}}"
+      CloudClientSecret: "${{parameters.ClientSecret}}"
+      CloudApiAppId: ""
+      CloudApiUrl: ""
+      ApiAppBase: ""
+      CliAppId: ""
+      ExtensionName: "MS"

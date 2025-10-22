@@ -1,0 +1,67 @@
+parameters:
+  - name: Version
+    type: string
+    default: "1.0.0-main.$(Build.BuildNumber)"
+
+  - name: "PoolName"
+    type: string
+    default: "Omnia Agents"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+  - name: RepositoryName
+    type: string
+    default: ""
+
+stages:
+  - stage: BuildProd
+    jobs:
+      - job: BuildJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        variables:
+          NODE_OPTIONS: "--max-old-space-size=16384" # Increase Node.js memory limit
+        steps:
+          - checkout: OmniaPipelines
+          - checkout: ${{ parameters.RepositoryName }}
+
+          - script: |
+              echo "##vso[task.setvariable variable=RepositoryNameLowered]$(echo '${{ parameters.RepositoryName }}' | tr '[:upper:]' '[:lower:]')"
+            displayName: "Set RepositoryNameLowered variable"
+          # -----------------------------------------------------------------------------------------------------------
+          # Init the build agent with .net, node, omnia cli
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/generic-init-dotnet-omnia-npm.yml
+            parameters:
+              dotnetVersion: "9.0.101"
+              Tag: $Tag
+
+          - template: ../templates/generic-rename-source-folders.yml
+            parameters:
+              RepositoryName: ${{ parameters.RepositoryName }}
+
+          # - task: NuGetAuthenticate@1
+          #   displayName: "NuGet Authenticate"
+
+          # - script: |
+          #     echo "$(npmFeedConnection):_authToken=$(VSS_NUGET_ACCESSTOKEN)" > ~/.npmrc
+          #   displayName: "NPM Authenticate"
+
+          - script: |
+              # ensures the script stops and the step fails if any command fails.
+              set -e 
+              $(HOME)/.dotnet/tools/omnia dev restore -p ${dir} "$(Build.SourcesDirectory)/$(RepositoryNameLowered)/src"
+            displayName: "${{ parameters.RepositoryName }} - All Extensions restore"
+
+          - template: ../templates/generic-extension-build-to-artifacts.yml
+            parameters:
+              Version: ${{ parameters.Version }}
+              ExtensionPath: "$(Build.SourcesDirectory)/$(RepositoryNameLowered)/src/extension.json"
+              PublishPath: "$(Build.ArtifactStagingDirectory)"
+              OmniaHome: "$(HOME)/.dotnet/tools"
+              DisplayName: ${{ parameters.RepositoryName }}
+
+          - template: ../templates/generic-pack-and-publish-drop.yml
+            parameters:
+              ArtifactPath: "$(Build.ArtifactStagingDirectory)"

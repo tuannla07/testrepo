@@ -1,0 +1,7 @@
+#header_message.update_available {
+    display: none !important;
+}
+
+div[vue-entry="CoreHome.VersionInfoHeaderMessage"] {
+    display: none !important;
+}

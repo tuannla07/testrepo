@@ -1,0 +1,66 @@
+############################################################################################################
+# Generic Extension Build to Artifacts Template
+#-----------------------------------------------------------------------------------------------------------
+# This template builds and publishes an Omnia extension to a specified artifacts path.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - Version: The version of the extension to publish (e.g., 1.0.0)
+# - ExtensionPath: The path to the extension.json file
+# - PublishPath: The path to the directory where the extension will be published
+# - DisplayName: The display name for the publish step
+# - OmniaHome: The path to the Omnia CLI tools
+# - EnsureRestore: Boolean flag to indicate whether to run restore before publish (default: false
+############################################################################################################
+
+parameters:
+  - name: Version
+    type: string
+    default: "1.0.0"
+  - name: ExtensionPath
+    type: string
+    default: ""
+  - name: PublishPath
+    type: string
+    default: ""
+  - name: DisplayName
+    type: string
+    default: "Publish Extension"
+  - name: OmniaHome
+    type: string
+    default: ""
+  - name: EnsureRestore
+    type: boolean
+    default: false
+
+steps:
+  - task: NuGetAuthenticate@1
+    displayName: "NuGet Authenticate"
+
+  - script: |
+      set -euo pipefail
+      if [ -z "${{ parameters.Version }}" ]; then
+        echo "Version is not set. Please provide a valid Version."
+        exit 1
+      fi
+      if [ -z "${{ parameters.ExtensionPath }}" ]; then
+        echo "ExtensionPath is not set. Please provide a valid ExtensionPath."
+        exit 1
+      fi
+      if [ -z "${{ parameters.PublishPath }}" ]; then
+        echo "PublishPath is not set. Please provide a valid PublishPath."
+        exit 1
+      fi
+      if [ -z "${{ parameters.OmniaHome }}" ]; then
+        echo "OmniaHome is not set. Please provide a valid OmniaHome."
+        exit 1
+      fi
+
+      echo "Publishing extension from ${{ parameters.ExtensionPath }} with version ${{ parameters.Version }} to ${{ parameters.PublishPath }}"
+
+      mkdir -p ${{ parameters.PublishPath }}
+      if [ "${{ parameters.EnsureRestore }}" = "true" ]; then
+        echo "Restoring..."
+        ${{ parameters.OmniaHome }}/omnia dev restore -p "${{ parameters.ExtensionPath }} -f"
+      fi
+      ${{ parameters.OmniaHome }}/omnia dev publish -p "${{ parameters.ExtensionPath }}" -v "${{ parameters.Version }}" --buildimages false --output "${{ parameters.PublishPath }}"
+    displayName: "${{ parameters.DisplayName }} - Package publish (No Images)"

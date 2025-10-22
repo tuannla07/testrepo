@@ -1,0 +1,57 @@
+############################################################################################################
+# This template updates a numeric counter variable in a specified Azure DevOps variable group.
+# It increments the current value by 1 and updates the variable group accordingly.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - LibraryGroupId: The ID of the variable group containing the counter variable.
+# - VariableName: The name of the variable to update.
+# - CurrentCounterValue: The current value of the counter variable.
+############################################################################################################
+
+parameters:
+  - name: LibraryGroupId
+    type: string
+    default: ""
+
+  - name: VariableName
+    type: string
+    default: ""
+
+  - name: CurrentCounterValue
+    type: string
+    default: ""
+
+steps:
+  - script: |
+      set -euo pipefail
+
+      # Step 1: Fetch the entire variable group definition
+      GROUP_JSON=$(curl -s \
+        -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+        "https://dev.azure.com/omnia-source/Omnia/_apis/distributedtask/variablegroups/${{ parameters.LibraryGroupId }}?api-version=7.1-preview.2")
+
+      if ! [[ "${{ parameters.CurrentCounterValue }}" =~ ^[0-9]+$ ]]; then
+        echo "❌ Invalid number in '${{ parameters.VariableName }}': ${{ parameters.CurrentCounterValue }}"
+        exit 1
+      fi
+
+      NEW_VALUE=$((${{ parameters.CurrentCounterValue }} + 1))
+
+      # Step 2: Update the value in the variables object
+      UPDATED_JSON=$(echo "$GROUP_JSON" | jq --arg key "${{ parameters.VariableName }}" --arg value "$NEW_VALUE" \
+        '.variables[$key].value = $value')
+
+      # Step 3: Remove read-only fields before PUT
+      CLEAN_JSON=$(echo "$UPDATED_JSON" | jq 'del(.createdBy, .createdOn, .modifiedBy, .modifiedOn)')
+
+      echo "Updating variable group with new value..."
+      curl -s -X PUT \
+        -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+        -H "Content-Type: application/json" \
+        -d "$CLEAN_JSON" \
+        "https://dev.azure.com/omnia-source/_apis/distributedtask/variablegroups/${{ parameters.LibraryGroupId }}?api-version=7.1-preview.2"
+
+      echo "✅ Successfully updated '${{ parameters.VariableName }}' to $NEW_VALUE"
+    displayName: "Update Library Variable Value"
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)

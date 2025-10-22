@@ -1,0 +1,63 @@
+############################################################################################################
+# Generic NPM and NuGet Report Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template generates and publishes HTML reports for NPM and NuGet dependencies
+# in the specified repository.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - RepositoryName: Name of the repository to generate reports for (e.g., OmniaMono)
+# - SolutionFilename: Name of the solution file to restore (e.g., OmniaIntranet.sln)
+############################################################################################################
+
+parameters:
+  - name: RepositoryName
+    type: string
+    default: "OmniaMono"
+
+  - name: SolutionFilename
+    type: string
+    default: "OmniaIntranet.sln"
+
+steps:
+  - checkout: OmniaPipelines
+  - checkout: OmniaMono
+
+  - template: ../templates/generic-rename-source-folders.yml
+    parameters:
+      RepositoryName: ${{ parameters.RepositoryName }}
+
+  - script: |
+      cd "$(Build.SourcesDirectory)/omniapipelines/scripts"
+      npm install
+      cd -
+    displayName: "Install NPM packages"
+
+  - script: |
+      set -euo pipefail
+
+      cd "$(Build.SourcesDirectory)/$(RepositoryNameLowered)/src"
+      node "$(Build.SourcesDirectory)/omniapipelines/scripts/generic-generate-npm-report.mjs" "$(Build.ArtifactStagingDirectory)"
+      cd -
+    displayName: "Generate NPM Report"
+
+  - task: PublishHtmlReport@1
+    displayName: "Publish HTML Report"
+    inputs:
+      reportDir: "$(Build.ArtifactStagingDirectory)/npm-dependency-report.html"
+      useFilenameTabs: false
+      tabName: "NPM Report"
+
+  - script: |
+      set -euo pipefail
+
+      cd "$(Build.SourcesDirectory)/$(RepositoryNameLowered)/src"
+      node "$(Build.SourcesDirectory)/omniapipelines/scripts/generic-generate-nuget-report.mjs" "$(Build.ArtifactStagingDirectory)" "OmniaIntranet.sln"
+      cd -
+    displayName: "Generate NuGet Report"
+
+  - task: PublishHtmlReport@1
+    displayName: "Publish HTML Report"
+    inputs:
+      reportDir: "$(Build.ArtifactStagingDirectory)/nuget-dependency-report.html"
+      useFilenameTabs: false
+      tabName: "NuGet Report"

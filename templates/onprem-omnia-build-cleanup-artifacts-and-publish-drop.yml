@@ -1,0 +1,58 @@
+parameters:
+  - name: ArtifactPath
+    type: string
+    default: ""
+
+steps:
+  # -----------------------------------------------------------------------------------------------------------
+  # REMOVE src.zip FILES
+  # -----------------------------------------------------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+
+      # Remove src.zip files from all subdirectories
+      echo "Removing all src.zip files. No need to keep them in the artifacts."
+
+      EXCLUDE_DIR="${{ parameters.ArtifactPath }}/omnia/omnia-aiengine-rag-worker/publish"
+
+      if [ -d "$EXCLUDE_DIR" ]; then
+        echo "Excluding $EXCLUDE_DIR from src.zip deletion"
+        find "${{ parameters.ArtifactPath }}/" \
+          -path "$EXCLUDE_DIR" -prune -o \
+          -type f -name "src.zip" -print -exec rm -f {} \;
+      else
+        echo "$EXCLUDE_DIR does not exist, proceeding without exclusion"
+        find "${{ parameters.ArtifactPath }}/" \
+          -type f -name "src.zip" -print -exec rm -f {} \;
+      fi
+
+      echo "Removing all packages folders in wwwroot so they don't get published..."
+
+      if [ -d "${{ parameters.ArtifactPath }}/omnia/Omnia.Web.App/publish/wwwroot/packages" ]; then
+        echo "Removing packages folder in /omnia/Omnia.Web.App/publish/wwwroot"
+        rm -rf "${{ parameters.ArtifactPath }}/omnia/Omnia.Web.App/publish/wwwroot/packages"
+      fi
+
+      if [ -d "${{ parameters.ArtifactPath }}/workplace/Omnia.Workplace.Web/publish/wwwroot/packages" ]; then
+        echo "Removing packages folder in /workplace/Omnia.Workplace.Web/publish/wwwroot"
+        rm -rf "${{ parameters.ArtifactPath }}/workplace/Omnia.Workplace.Web/publish/wwwroot/packages"
+      fi
+
+      if [ -d "${{ parameters.ArtifactPath }}/webcontentmanagement/Omnia.WebContentManagement.Web/publish/wwwroot/packages" ]; then
+        echo "Removing packages folder in /webcontentmanagement/Omnia.WebContentManagement.Web/publish/wwwroot"
+        rm -rf "${{ parameters.ArtifactPath }}/webcontentmanagement/Omnia.WebContentManagement.Web/publish/wwwroot/packages"
+      fi
+
+      if [ -d "${{ parameters.ArtifactPath }}/managementsystem/Omnia.ManagementSystem.Web/publish/wwwroot/packages" ]; then
+        echo "Removing packages folder in /managementsystem/Omnia.ManagementSystem.Web/publish/wwwroot"
+        rm -rf "${{ parameters.ArtifactPath }}/managementsystem/Omnia.ManagementSystem.Web/publish/wwwroot/packages"
+      fi
+
+    displayName: "Remove src.zip and packages folders"
+
+    # -----------------------------------------------------------------------------------------------------------
+    # ARTIFACTS: Create artifacts.tar.gz (all in ArtifactPath)
+    # -----------------------------------------------------------------------------------------------------------
+  - template: generic-pack-and-publish-drop.yml
+    parameters:
+      ArtifactPath: "${{ parameters.ArtifactPath }}"

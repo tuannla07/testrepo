@@ -1,0 +1,83 @@
+############################################################################################################
+# Generic Audit Pipeline for NPM and NuGet packages
+#-----------------------------------------------------------------------------------------------------------
+# This pipeline performs security audits on both NPM and NuGet packages
+# in the specified repository and generates reports based on the defined
+# severity filters.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - PoolName: The name of the agent pool to use (default: "Omnia Agents")
+# - RepositoryName: Name of the repository to audit (default: "OmniaMono")
+# - SolutionFilename: The solution file to audit (default: "OmniaIntranet.sln")
+# - SeverityFilterNuget: Minimum severity level of NuGet vulnerabilities to report (default: High)
+# - SeverityFilterNpm: Minimum severity level of NPM vulnerabilities to report (default: high)
+############################################################################################################
+
+parameters:
+  - name: "PoolName"
+    type: string
+    default: "Omnia Agents"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+  - name: RepositoryName
+    type: string
+    default: "OmniaMono"
+
+  - name: SolutionFilename
+    type: string
+    default: "OmniaIntranet.sln"
+
+  - name: SeverityFilterNuget
+    type: string
+    default: "High"
+    values:
+      - "Critical"
+      - "High"
+      - "Moderate"
+      - "Low"
+
+  - name: SeverityFilterNpm
+    type: string
+    default: "high"
+    values:
+      - "critical"
+      - "high"
+      - "moderate"
+      - "low"
+
+stages:
+  - stage: GenerateReports
+    displayName: "Generate Package Reports"
+    jobs:
+      - job: GenerateReportsJob
+        displayName: "Generate NPM and NuGet Package Reports"
+        pool:
+          name: ${{ parameters.PoolName }}
+        steps:
+          - template: ../templates/generic-npm-nuget-report.yml
+            parameters:
+              RepositoryName: ${{ parameters.RepositoryName }}
+              SolutionFilename: ${{ parameters.SolutionFilename }}
+
+      - job: RunNugetAuditJob
+        displayName: "Run Audit on NuGet packages"
+        pool:
+          name: ${{ parameters.PoolName }}
+        steps:
+          - template: ../templates/generic-audit-nuget.yml
+            parameters:
+              RepositoryName: ${{ parameters.RepositoryName }}
+              SolutionFilename: ${{ parameters.SolutionFilename }}
+              SeverityFilterNuget: ${{ parameters.SeverityFilterNuget }}
+
+      - job: RunNpmAuditJob
+        displayName: "Run Audit on NPM packages"
+        pool:
+          name: ${{ parameters.PoolName }}
+        steps:
+          - template: ../templates/generic-audit-npm.yml
+            parameters:
+              RepositoryName: ${{ parameters.RepositoryName }}
+              SeverityFilterNpm: ${{ parameters.SeverityFilterNpm }}

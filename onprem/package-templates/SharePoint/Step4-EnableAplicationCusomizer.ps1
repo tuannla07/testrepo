@@ -1,0 +1,1 @@
+﻿(Get-SPSite -Identity "https://omniaci.preciofishbone.se").DenyPermissionsMask= [Microsoft.SharePoint.SPBasePermissions]::EmptyMask

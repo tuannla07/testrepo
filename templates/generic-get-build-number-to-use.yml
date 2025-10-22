@@ -1,0 +1,46 @@
+############################################################################################################
+# This template determines the build number to use based on the provided
+# BuildNumber and NextBuildVersion parameters.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - BuildNumber: The build number provided as input (can be empty)
+# - NextBuildVersion: The next build version to use if BuildNumber is empty
+############################################################################################################
+
+parameters:
+  - name: BuildNumber
+    type: string
+    default: ""
+
+  - name: NextBuildVersion
+    type: string
+    default: ""
+
+steps:
+  - script: |
+      set -euo pipefail 
+
+      CURRENT_VALUE=${{parameters.BuildNumber}}
+
+      if [ -z "${{ parameters.BuildNumber }}" ]; then
+        
+        if [ -z "${{ parameters.NextBuildVersion }}" ]; then
+          echo "No NextBuildVersion provided, missing library connection..."
+          exit 1
+        fi
+
+        echo "BuildNumber is empty, setting build number to: ${{ parameters.NextBuildVersion }}."
+        CURRENT_VALUE=${{ parameters.NextBuildVersion }}
+      else
+        echo "BuildNumber is set, using value: ${{ parameters.BuildNumber }}."
+        CURRENT_VALUE=${{ parameters.BuildNumber }}
+      fi
+
+      if ! [[ "$CURRENT_VALUE" =~ ^[0-9]+$ ]]; then
+        echo "❌ Invalid number in BuildNumber or NextBuildVersion: $CURRENT_VALUE"
+        exit 1
+      fi
+
+      echo "##vso[task.setvariable variable=BuildNumberToUse]$CURRENT_VALUE"
+
+    displayName: "Set Build Number"

@@ -1,0 +1,80 @@
+############################################################################################################
+# Generic NuGet Audit Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template performs a security audit of NuGet packages in the specified repository.
+# It checks for vulnerabilities based on the defined severity filter and logs issues if found.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - RepositoryName: Name of the repository to audit (e.g., OmniaMono)
+# - SolutionFilename: Name of the solution file to restore (e.g., OmniaIntranet.sln)
+# - SeverityFilterNuget: Minimum severity level of vulnerabilities to report (default: High)
+############################################################################################################
+
+parameters:
+  - name: RepositoryName
+    type: string
+    default: "OmniaMono"
+
+  - name: SolutionFilename
+    type: string
+    default: "OmniaIntranet.sln"
+
+  - name: SeverityFilterNuget
+    type: string
+    default: "High"
+    values:
+      - "Critical"
+      - "High"
+      - "Moderate"
+      - "Low"
+steps:
+  - checkout: OmniaPipelines
+  - checkout: OmniaMono
+
+  # -----------------------------------------------------------------------------------------------------------
+  # Init the build agent with .net, node, omnia cli
+  # -----------------------------------------------------------------------------------------------------------
+  - template: ../templates/generic-init-dotnet-omnia-npm.yml
+    parameters:
+      dotnetVersion: "9.0.101"
+      ExcludeNpmInstall: true
+
+  - template: ../templates/generic-rename-source-folders.yml
+    parameters:
+      RepositoryName: ${{ parameters.RepositoryName }}
+
+  - task: NuGetAuthenticate@1
+    displayName: "NuGet Authenticate"
+
+  - script: |
+      echo "$(npmFeedConnection):_authToken=$(VSS_NUGET_ACCESSTOKEN)" > ~/.npmrc
+    displayName: "NPM Authenticate"
+
+  - script: |
+      set -euo pipefail
+
+      cd "$(Build.SourcesDirectory)/$(RepositoryNameLowered)/src"
+
+      # Restore packages
+      dotnet restore "${{ parameters.SolutionFilename }}"
+
+      # Run the dotnet command
+      output=$(dotnet list "${{ parameters.SolutionFilename }}" package --vulnerable)
+
+      # Log output (optional for debugging)
+      echo "$output"
+
+      # Filter for vulnerabilities matching severity
+
+      if echo "$output" | grep -iq "${{ parameters.SeverityFilterNuget }}"; then
+          echo "$output" | grep -i "${{ parameters.SeverityFilterNuget }}" | while IFS= read -r line; do
+              echo "##vso[task.logissue type=error]Found vulnerable NuGet package: $line"
+          done
+          exit 1
+      else
+          echo "##vso[task.complete result=Succeeded;]Nuget packages audited - No security issues found"
+          exit 0
+      fi
+
+      cd -
+    displayName: "Run NuGet Audit"

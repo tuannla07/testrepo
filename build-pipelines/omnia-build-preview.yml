@@ -1,0 +1,257 @@
+parameters:
+  - name: Version
+    type: string
+    default: "1.0.0-preview.$(Build.BuildNumber)"
+
+  - name: "PoolName"
+    type: string
+    default: "Omnia Agents"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+stages:
+  - stage: BuildProd
+    jobs:
+      - job: BuildJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        variables:
+          NODE_OPTIONS: "--max-old-space-size=16384" # Increase Node.js memory limit
+        steps:
+          - checkout: OmniaPipelines
+          - checkout: OmniaMono
+
+          # -----------------------------------------------------------------------------------------------------------
+          # Init the build agent with .net, node, omnia cli
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/generic-init-dotnet-omnia-npm.yml
+            parameters:
+              dotnetVersion: "9.0.101"
+              Tag: $Tag
+
+          - script: |
+              npm install fs-extra
+            displayName: "Install NPM packages"
+
+          - template: ../templates/generic-rename-source-folders.yml
+            parameters:
+              RepositoryName: "OmniaMono"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # All Omnia Extension restore
+          # -----------------------------------------------------------------------------------------------------------
+          - task: NuGetAuthenticate@1
+            displayName: "NuGet Authenticate"
+
+          - script: |
+              echo "$(npmFeedConnection):_authToken=$(VSS_NUGET_ACCESSTOKEN)" > ~/.npmrc
+            displayName: "NPM Authenticate"
+
+          - script: |
+              # ensures the script stops and the step fails if any command fails.
+              set -e 
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-restore-all.js" "$(HOME)/.dotnet/tools" "$(Build.SourcesDirectory)/omniamono/src"
+            displayName: "Omnia - All Extensions restore"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # OMNIA - omnia dev publish
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/generic-extension-build-to-artifacts.yml
+            parameters:
+              Version: ${{ parameters.Version }}
+              ExtensionPath: "$(Build.SourcesDirectory)/omniamono/src/omnia/extension.json"
+              PublishPath: "$(Build.ArtifactStagingDirectory)/omnia"
+              OmniaHome: "$(HOME)/.dotnet/tools"
+              DisplayName: "Omnia"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # OMNIA - Migration Worker - omnia dev publish
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/generic-extension-build-to-artifacts.yml
+            parameters:
+              Version: ${{ parameters.Version }}
+              ExtensionPath: "$(Build.SourcesDirectory)/omniamono/src/omnia/migration-worker-extension.json"
+              PublishPath: "$(Build.ArtifactStagingDirectory)/omnia"
+              OmniaHome: "$(HOME)/.dotnet/tools"
+              DisplayName: "Omnia - Migration"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # OMNIA - build local NPM and copy to artifacts folder
+          # -----------------------------------------------------------------------------------------------------------
+          - script: |
+              # ensures the script stops and the step fails if any command fails.
+              set -e 
+              node "$WEBAPP_PATH/build-packages.js"
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-artifacts.js" "$WEBAPP_PATH/wwwroot/packages" "$PUBLISH_OUTPUT_PATH" "$(omniaPackages)"
+            displayName: "Omnia - local NPM packages"
+            env:
+              WEBAPP_PATH: "$(Build.SourcesDirectory)/omniamono/src/omnia/Omnia.Web.App"
+              PUBLISH_OUTPUT_PATH: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # WORKPLACE - override NPM packages for Omnia
+          # -----------------------------------------------------------------------------------------------------------
+          - script: |
+              # ensures the script stops and the step fails if any command fails.
+              set -e 
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/omnia/Omnia.Web.App" "$WEBAPP_PATH" "omnia"
+              chmod -R 777 $WEBAPP_PATH/node_modules/@omnia
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/omnia/Omnia.Web.App" "$WORKER_PATH" "omnia"
+              chmod -R 777 $WORKER_PATH/node_modules/@omnia
+
+            displayName: "Workplace - override NPM packages"
+            env:
+              WEBAPP_PATH: "$(Build.SourcesDirectory)/omniamono/src/workplace/Omnia.Workplace.Web"
+              WORKER_PATH: "$(Build.SourcesDirectory)/omniamono/src/workplace/Omnia.Workplace.Worker"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # WORKPLACE - omnia dev publish
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/generic-extension-build-to-artifacts.yml
+            parameters:
+              Version: ${{ parameters.Version }}
+              ExtensionPath: "$(Build.SourcesDirectory)/omniamono/src/workplace/extension.json"
+              PublishPath: "$(Build.ArtifactStagingDirectory)/workplace"
+              OmniaHome: "$(HOME)/.dotnet/tools"
+              DisplayName: "Workplace"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # WORKPLACE - Migration Worker - omnia dev publish
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/generic-extension-build-to-artifacts.yml
+            parameters:
+              Version: ${{ parameters.Version }}
+              ExtensionPath: "$(Build.SourcesDirectory)/omniamono/src/workplace/migration-worker-extension.json"
+              PublishPath: "$(Build.ArtifactStagingDirectory)/workplace"
+              OmniaHome: "$(HOME)/.dotnet/tools"
+              DisplayName: "Workplace - Migration"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # WORKPLACE - build local NPM and copy to artifacts folder
+          # -----------------------------------------------------------------------------------------------------------
+          - script: |
+              # ensures the script stops and the step fails if any command fails.
+              set -e 
+              node "$WEBAPP_PATH/build-packages.js"
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-artifacts.js" "$WEBAPP_PATH/wwwroot/packages" "$PUBLISH_OUTPUT_PATH" "$(wpPackages)"
+            displayName: "Workplace - local NPM packages"
+            env:
+              WEBAPP_PATH: "$(Build.SourcesDirectory)/omniamono/src/workplace/Omnia.Workplace.Web"
+              PUBLISH_OUTPUT_PATH: "$(Build.ArtifactStagingDirectory)/workplace/Omnia.Workplace.Web/wwwroot/packages"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # WCM - override NPM packages for Omnia
+          # -----------------------------------------------------------------------------------------------------------
+          - script: |
+              # ensures the script stops and the step fails if any command fails.
+              set -e
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/omnia/Omnia.Web.App" "$WEBAPP_PATH" "omnia"
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/workplace/Omnia.Workplace.Web" "$WEBAPP_PATH" "wp"
+              chmod -R 777 $WEBAPP_PATH/node_modules/@omnia
+
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/omnia/Omnia.Web.App" "$WORKER_PATH" "omnia"
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/workplace/Omnia.Workplace.Web" "$WORKER_PATH" "wp"
+              chmod -R 777 $WORKER_PATH/node_modules/@omnia
+            displayName: "WCM - override NPM packages"
+            env:
+              WEBAPP_PATH: "$(Build.SourcesDirectory)/omniamono/src/webcontentmanagement/Omnia.WebContentManagement.Web"
+              WORKER_PATH: "$(Build.SourcesDirectory)/omniamono/src/webcontentmanagement/Omnia.WebContentManagement.Worker"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # WCM - omnia dev publish
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/generic-extension-build-to-artifacts.yml
+            parameters:
+              Version: ${{ parameters.Version }}
+              ExtensionPath: "$(Build.SourcesDirectory)/omniamono/src/webcontentmanagement/extension.json"
+              PublishPath: "$(Build.ArtifactStagingDirectory)/webcontentmanagement"
+              OmniaHome: "$(HOME)/.dotnet/tools"
+              DisplayName: "WCM"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # WCM - Migration Worker - omnia dev publish
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/generic-extension-build-to-artifacts.yml
+            parameters:
+              Version: ${{ parameters.Version }}
+              ExtensionPath: "$(Build.SourcesDirectory)/omniamono/src/webcontentmanagement/migration-worker-extension.json"
+              PublishPath: "$(Build.ArtifactStagingDirectory)/webcontentmanagement"
+              OmniaHome: "$(HOME)/.dotnet/tools"
+              DisplayName: "WCM - Migration"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # WCM - build local NPM and copy to artifacts folder
+          # -----------------------------------------------------------------------------------------------------------
+          - script: |
+              # ensures the script stops and the step fails if any command fails.
+              set -e
+              node "$WEBAPP_PATH/build-packages.js"
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-artifacts.js" "$WEBAPP_PATH/wwwroot/packages" "$PUBLISH_OUTPUT_PATH" "$(wcmPackages)"
+            displayName: "WCM - local NPM packages"
+            env:
+              WEBAPP_PATH: "$(Build.SourcesDirectory)/omniamono/src/webcontentmanagement/Omnia.WebContentManagement.Web"
+              PUBLISH_OUTPUT_PATH: "$(Build.ArtifactStagingDirectory)/webcontentmanagement/Omnia.WebContentManagement.Web/wwwroot/packages"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # MS - override NPM packages for Omnia
+          # -----------------------------------------------------------------------------------------------------------
+          - script: |
+              # ensures the script stops and the step fails if any command fails.
+              set -e
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/omnia/Omnia.Web.App" "$WEBAPP_PATH" "omnia"
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/workplace/Omnia.Workplace.Web" "$WEBAPP_PATH" "wp"
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/webcontentmanagement/Omnia.WebContentManagement.Web" "$WEBAPP_PATH" "wcm"
+              chmod -R 777 $WEBAPP_PATH/node_modules/@omnia
+
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/omnia/Omnia.Web.App" "$WORKER_PATH" "omnia"
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/workplace/Omnia.Workplace.Web" "$WORKER_PATH" "wp"
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-npm-local.js" "$(Build.SourcesDirectory)/omniamono/src/webcontentmanagement/Omnia.WebContentManagement.Web" "$WORKER_PATH" "wcm"
+              chmod -R 777 $WORKER_PATH/node_modules/@omnia
+            displayName: "MS - override NPM packages"
+            env:
+              WEBAPP_PATH: "$(Build.SourcesDirectory)/omniamono/src/managementsystem/Omnia.ManagementSystem.Web"
+              WORKER_PATH: "$(Build.SourcesDirectory)/omniamono/src/managementsystem/Omnia.ManagementSystem.Worker"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # MS - omnia dev publish
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/generic-extension-build-to-artifacts.yml
+            parameters:
+              Version: ${{ parameters.Version }}
+              ExtensionPath: "$(Build.SourcesDirectory)/omniamono/src/managementsystem/extension.json"
+              PublishPath: "$(Build.ArtifactStagingDirectory)/managementsystem"
+              OmniaHome: "$(HOME)/.dotnet/tools"
+              DisplayName: "MS - Package publish (No Images)"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # MS - Migration Worker - omnia dev publish
+          # -----------------------------------------------------------------------------------------------------------
+
+          - template: ../templates/generic-extension-build-to-artifacts.yml
+            parameters:
+              Version: ${{ parameters.Version }}
+              ExtensionPath: "$(Build.SourcesDirectory)/omniamono/src/managementsystem/migration-worker-extension.json"
+              PublishPath: "$(Build.ArtifactStagingDirectory)/managementsystem"
+              OmniaHome: "$(HOME)/.dotnet/tools"
+              DisplayName: "MS - Migration"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # MS - build local NPM and copy to artifacts folder
+          # -----------------------------------------------------------------------------------------------------------
+          - script: |
+              # ensures the script stops and the step fails if any command fails.
+              set -e
+              node "$WEBAPP_PATH/build-packages.js"
+              node "$(Build.SourcesDirectory)/omniapipelines/scripts/omnia-build-copy-artifacts.js" "$WEBAPP_PATH/wwwroot/packages" "$PUBLISH_OUTPUT_PATH" "$(msPackages)"
+            displayName: "MS - local NPM packages"
+            env:
+              WEBAPP_PATH: "$(Build.SourcesDirectory)/omniamono/src/managementsystem/Omnia.ManagementSystem.Web"
+              PUBLISH_OUTPUT_PATH: "$(Build.ArtifactStagingDirectory)/managementsystem/Omnia.ManagementSystem.Web/wwwroot/packages"
+
+          # -----------------------------------------------------------------------------------------------------------
+          # ARTIFACTS: Create artifacts.tar.gz (all in ArtifactStagingDirectory)
+          # -----------------------------------------------------------------------------------------------------------
+          - template: ../templates/omnia-build-cleanup-artifacts-and-publish-drop.yml
+            parameters:
+              ArtifactPath: "$(Build.ArtifactStagingDirectory)"

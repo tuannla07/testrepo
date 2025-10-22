@@ -1,0 +1,230 @@
+parameters:
+  - name: MainVersion
+    type: string
+    default: ""
+
+  - name: Tag
+    type: string
+    default: "latest" # should be latest in prod branch
+    displayName: "Tag"
+
+  - name: "PoolName"
+    type: string
+    default: "Azure Pipelines"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+  - name: RepositoryName
+    type: string
+    default: ""
+
+  - name: ExtensionId
+    type: string
+    default: ""
+
+  # EnsureVersion -> Push_TestCloud_ProdIntent  -> Push_ProdCloud_ProdIntent
+  #                                             -> Push_TestCloud_DevIntent
+stages:
+  - stage: EnsureVersion
+    dependsOn: []
+    displayName: "Ensure Version"
+    jobs:
+      - job: EnsureVersionJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        steps:
+          - checkout: OmniaPipelines
+
+          - script: |
+              if([ -z "${{ parameters.ExtensionId }}" ]); then
+                echo "❌ ExtensionId parameter is required."
+                exit 1
+              fi
+              if [ "${{ parameters.ExtensionId }}" = "94418fb5-2a96-4f20-9c80-e2f27a0a62f0" ]; then
+                echo "##vso[task.setvariable variable=AutostartDefinitionId;isOutput=true]$(FeedAutostartDefinitionId)"
+                echo "##vso[task.setvariable variable=VariableName;isOutput=true]FeedNextBuildVersion"
+                echo "##vso[task.setvariable variable=BuildNumber]$(FeedBuildNumber)"
+                echo "✅ Using parameters for extension: Feed"
+              elif [ "${{ parameters.ExtensionId }}" = "c187b4f7-9b18-4eea-a549-ae3afa3d6888" ]; then
+                echo "##vso[task.setvariable variable=AutostartDefinitionId;isOutput=true]$(AnalyticsAutostartDefinitionId)"
+                echo "##vso[task.setvariable variable=VariableName;isOutput=true]AnalyticsNextBuildVersion"
+                echo "##vso[task.setvariable variable=BuildNumber]$(AnalyticsBuildNumber)"
+                echo "✅ Using parameters for extension: Analytics"
+              else
+                echo "❌ Unknown ExtensionId: ${{ parameters.ExtensionId }}"
+              fi
+            displayName: "Ensure extension variables"
+
+          - template: ../templates/generic-get-build-number-to-use.yml
+            parameters:
+              NextBuildVersion: $(BuildNumber)
+
+          - template: ../templates/generic-ensure-version-as-variable.yml
+            parameters:
+              BuildNumber: $(BuildNumberToUse)
+              Tag: ${{ parameters.Tag }}
+              MainVersion: ${{ parameters.MainVersion }}
+
+          - template: ../templates/generic-set-buildnumber-on-build.yml
+            parameters:
+              Version: "$(Version)"
+              BuildVersion: $(BuildNumberToUse)
+
+          - script: |
+              echo "Setting version: $(Version)"
+              echo "##vso[build.addbuildtag]$(Version)"
+              echo "##vso[task.setvariable variable=UsedBuildNumber;isOutput=true]$(BuildNumberToUse)"
+              echo "##vso[task.setvariable variable=Version;isOutput=true]$(Version)"
+            name: EnsureVersionTask
+            displayName: "Setting version variable and tag"
+
+  # ------------------------------------------------------------------
+  # STAGE: Push Omnia Extensions to TEST Cloud - Prod intent
+  # ------------------------------------------------------------------
+  - stage: Push_TestCloud_ProdIntent
+    dependsOn: [EnsureVersion]
+    displayName: "Push Test Cloud (Prod intent)"
+    jobs:
+      - job: Push_TestCloud_ProdIntentJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        variables:
+          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+        displayName: "Push Test Cloud (Prod intent)"
+        steps:
+          - checkout: OmniaPipelines
+          - checkout: ${{ parameters.RepositoryName }}
+
+          - template: ../templates/generic-rename-source-folders.yml
+            parameters:
+              RepositoryName: ${{ parameters.RepositoryName }}
+
+          # -----------------------------------------------------------------
+          # init dotnet and npm, and omnia cli
+          # Download and unzip drop
+          # -----------------------------------------------------------------
+          - template: ../templates/generic-init-dotnet-omnia-npm.yml
+            parameters:
+              dotnetVersion: "9.0.101"
+              Tag: ${{ parameters.Tag }}
+
+          - template: ../templates/generic-download-and-unpack-drop.yml
+            parameters:
+              DropName: $(dropName)
+              WorkspacePath: "$(Pipeline.Workspace)"
+              StripComponents: 4
+
+          # -----------------------------------------------------------------
+          # Build Omnia - Docker image and publish to AZ Container Registry
+          # -----------------------------------------------------------------
+          - template: ../templates/generic-extension-build-to-repository-and-cloud.yml
+            parameters:
+              Version: "$(Version)"
+              CloudClientId: "$(TestCloudClientId)"
+              CloudClientSecret: "$(TestCloudClientSecret)"
+              ExtensionId: ${{ parameters.ExtensionId }}
+              Intent: "prod"
+              Environment: "test"
+              ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/extension.json"
+              CloudApiAppId: "" # Only used if environment is custom
+              CloudApiUrl: "" # Only used if environment is custom
+              ApiAppBase: "" # Only used if environment is custom
+              CliAppId: "" # Only used if environment is custom
+              ExtensionName: ${{ parameters.RepositoryName }}
+
+  # ------------------------------------------------------------------
+  # STAGE: Push Omnia Extensions to PROD Cloud - Prod intent
+  # ------------------------------------------------------------------
+  - stage: Push_ProdCloud_ProdIntent
+    dependsOn: [EnsureVersion, Push_TestCloud_ProdIntent]
+    displayName: "Push Prod Cloud (Prod intent)"
+    jobs:
+      - job: Push_ProdCloud_ProdIntentJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        variables:
+          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+        displayName: "Push Prod Cloud (Prod intent)"
+        steps:
+          - checkout: OmniaPipelines
+          - checkout: ${{ parameters.RepositoryName }}
+
+          - template: ../templates/generic-rename-source-folders.yml
+            parameters:
+              RepositoryName: ${{ parameters.RepositoryName }}
+
+          # -----------------------------------------------------------------
+          # init dotnet and npm, and omnia cli
+          # Download and unzip drop
+          # -----------------------------------------------------------------
+          - template: ../templates/generic-init-dotnet-omnia-npm.yml
+            parameters:
+              dotnetVersion: "9.0.101"
+              Tag: ${{ parameters.Tag }}
+
+          - template: ../templates/generic-download-and-unpack-drop.yml
+            parameters:
+              DropName: $(dropName)
+              WorkspacePath: "$(Pipeline.Workspace)"
+              StripComponents: 4
+
+          # -----------------------------------------------------------------
+          # Build Omnia - Docker image and publish to AZ Container Registry
+          # -----------------------------------------------------------------
+          - template: ../templates/generic-extension-build-to-repository-and-cloud.yml
+            parameters:
+              Version: "$(Version)"
+              CloudClientId: "$(ProdCloudClientId)"
+              CloudClientSecret: "$(ProdCloudClientSecret)"
+              ExtensionId: ${{ parameters.ExtensionId }}
+              Intent: "prod"
+              Environment: "prod"
+              ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/extension.json"
+              CloudApiAppId: "" # Only used if environment is custom
+              CloudApiUrl: "" # Only used if environment is custom
+              ApiAppBase: "" # Only used if environment is custom
+              CliAppId: "" # Only used if environment is custom
+              ExtensionName: ${{ parameters.RepositoryName }}
+
+  # ------------------------------------------------------------------
+  # STAGE: Start Other Clouds - trigger pipelines
+  # ------------------------------------------------------------------
+  - stage: StartOtherClouds
+    dependsOn: [Push_TestCloud_ProdIntent, Push_ProdCloud_ProdIntent]
+    displayName: "Start Other Clouds"
+    jobs:
+      - job: StartOtherCloudsJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        variables:
+          UsedBuildNumber: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.UsedBuildNumber'] ]
+          AutostartDefinitionId: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.AutostartDefinitionId'] ]
+        steps:
+          - template: ../templates/generic-trigger-release-definition.yml
+            parameters:
+              DefinitionId: "$(OmniaAutostartDefinitionId)"
+              BuildNumber: "$(UsedBuildNumber)"
+              MainVersion: "${{ parameters.MainVersion }}"
+              Tag: "${{ parameters.Tag }}"
+              PoolName: "${{ parameters.PoolName }}"
+
+  # -----------------------------------------------------------------
+  # STAGE: Set next build version
+  # -----------------------------------------------------------------
+  - stage: SetNextBuildVersion
+    dependsOn: [EnsureVersion, StartOtherClouds]
+    displayName: "Set Next Build Version"
+    jobs:
+      - job: SetNextBuildVersionJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        variables:
+          UsedBuildNumber: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.UsedBuildNumber'] ]
+          VariableName: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.VariableName'] ]
+        steps:
+          - template: ../templates/generic-update-library-counter.yml
+            parameters:
+              LibraryGroupId: "$(LibraryGroupId)"
+              VariableName: "$(VariableName)"
+              CurrentCounterValue: "$(UsedBuildNumber)"

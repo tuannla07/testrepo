@@ -1,0 +1,8 @@
+{
+    "OmniaSSO":{
+        "OverrideOmniaUrl": "Omnia Custom Domain URL",
+        "OverideOmniaUrlHelp": "If using custom domain in Omnia set that address here",
+        "AuthorizeWithOmnia": "Authorize with Omnia"
+
+    }
+}

@@ -1,0 +1,303 @@
+################################################################################
+# TEST CLOUD DEPLOYMENT PIPELINE
+################################################################################
+# This deployment pipeline deploys the latest version of the Omnia extensions to
+# the specified environment on a specified Tenant.
+#
+# It requires:
+#   Library Group "PipelinesXXX" to be attached through UI for the variables:
+#     OmniaDefinitionId
+#     AnalyticsDefinitionId
+#     FeedDefinitionId
+#   Variables to be set outside:
+#     TenantId - <TenantId>
+#
+# Following extensions are deployed in order:
+# - Omnia
+# - WP
+# - WCM
+# - MS
+# - Analytics
+# - Feed
+# -----------------------------------------------------------------------------
+# Usage:
+# - template: "quick-deploy-test-cloud.yml"
+#   parameters:
+#     PoolName: <PoolName>
+################################################################################
+
+parameters:
+  - name: "PoolName"
+    type: string
+    default: "Azure Pipelines"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+trigger: none
+pr: none
+
+variables:
+  - group: ProdCloud # Get the TestCloud id and secret
+
+  # Variables set outside:
+  # TenantId - <TenantId>
+  # OmniaDefinitionId - <DefinitionId>
+  # AnalyticsDefinitionId - <DefinitionId>
+  # FeedDefinitionId - <DefinitionId>
+
+  # OmniaDefinitionId - This is the Release pipelines definitions to use to get the release to deploy
+  # 338 - OmniaMono - Release - Prod
+  # 345 - OmniaMono - Release - Regression
+  # 344 - OmniaMono - Release - Preview
+  # 343 - OmniaMono - Release - Dev
+
+  # AnalyticsDefinitionId - This is the Release pipelines definitions to use to get the release to deploy
+  # 373 - OmniaAnalytics - Release - Prod
+  # 374 - OmniaAnalytics - Release - Regression
+  # 375 - OmniaAnalytics - Release - Preview
+  # 376 - OmniaAnalytics - Release - Dev
+
+  # FeedDefinitionId - This is the Release pipelines definitions to use to get the release to deploy
+  # 404 - OmniaFeed - Release - Prod
+  # 405 - OmniaFeed - Release - Regression
+  # 406 - OmniaFeed - Release - Preview
+  # 407 - OmniaFeed - Release - Dev
+
+  # Variables to be set by "get-latest-release-version" template
+  - name: ShouldBuild
+    value: false
+  - name: BuildDefOnBuild
+    value: ""
+  - name: BuildIdUsedInRelease
+    value: ""
+  - name: BuildNumberUsedInRelease
+    value: ""
+  - name: BuildTagUsedInRelease
+    value: ""
+  - name: BuildConfigUsedInRelease
+    value: ""
+  - name: BuildPoolUsedInRelease
+    value: ""
+  - name: NewReleaseBuildNumber
+    value: ""
+
+  # Variables to be set by "get-latest-release-version" and "run-new-release-of-build" template
+  - name: LatestReleaseVersionTag
+    value: ""
+
+stages:
+  - stage: GetLatestOmniaVersion
+    dependsOn: []
+    displayName: "Get latest Omnia version"
+    jobs:
+      - job: LatestVersionJob
+        pool: ${{parameters.PoolName}}
+        displayName: "Get latest Omnia version"
+        steps:
+          - checkout: none
+
+          - template: ../templates/generic-get-latest-release-or-build.yml
+            parameters:
+              DefinitionId: $(OmniaDefinitionId)
+              TagPrefix: "Omnia"
+              FailIfNoRelease: true
+
+          - script: |
+              echo "##vso[task.setvariable variable=VersionTagToRelease;isOutput=true]$(LatestReleaseVersionTag)"
+              echo "##vso[task.setvariable variable=BuildTagUsedInRelease;isOutput=true]$(BuildTagUsedInRelease)"
+            name: EnsureVariables
+            displayName: "Ensure variables"
+
+  - stage: GetLatestAnalyticsVersion
+    dependsOn: []
+    displayName: "Get latest Analytics version"
+    jobs:
+      - job: LatestVersionJob
+        pool: ${{parameters.PoolName}}
+        displayName: "Get latest Analytics version"
+        steps:
+          - checkout: none
+
+          - template: ../templates/generic-get-latest-release-or-build.yml
+            parameters:
+              DefinitionId: $(AnalyticsDefinitionId)
+              TagPrefix: "Analytics"
+              FailIfNoRelease: false
+
+          - script: |
+              echo "##vso[task.setvariable variable=VersionTagToRelease;isOutput=true]$(LatestReleaseVersionTag)"
+              echo "##vso[task.setvariable variable=BuildTagUsedInRelease;isOutput=true]$(BuildTagUsedInRelease)"
+            name: EnsureVariables
+            displayName: "Ensure variables"
+
+  - stage: GetLatestFeedVersion
+    dependsOn: []
+    displayName: "Get latest Feed version"
+    jobs:
+      - job: LatestFeedVersionJob
+        pool: ${{parameters.PoolName}}
+        displayName: "Get latest Feed version"
+        steps:
+          - checkout: none
+
+          - template: ../templates/generic-get-latest-release-or-build.yml
+            parameters:
+              DefinitionId: $(FeedDefinitionId)
+              TagPrefix: "Feed"
+              FailIfNoRelease: false
+
+          - script: |
+              echo "##vso[task.setvariable variable=VersionTagToRelease;isOutput=true]$(LatestReleaseVersionTag)"
+              echo "##vso[task.setvariable variable=BuildTagUsedInRelease;isOutput=true]$(BuildTagUsedInRelease)"
+            name: EnsureFeedVariables
+            displayName: "Ensure variables"
+
+  - stage: DeployToOmnia
+    dependsOn: [GetLatestOmniaVersion]
+    condition: succeeded()
+    variables:
+      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.VersionTagToRelease'] ]
+      BuildTag: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.BuildTagUsedInRelease'] ]
+    displayName: "Deploy Omnia"
+    jobs:
+      - job: DeployJob
+        pool: ${{parameters.PoolName}}
+        displayName: "Deploy Omnia"
+        steps:
+          - checkout: none
+
+          - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
+            parameters:
+              BuildTag: $(BuildTag)
+              Version: $(Version)
+              TenantId: $(TenantId)
+              CloudClientId: "$(ProdCloudClientId)"
+              CloudClientSecret: "$(ProdCloudClientSecret)"
+              Environment: "prod"
+              ExtensionId: "aa000000-0000-aaaa-0000-0000000000aa"
+              ExtensionName: "Omnia"
+
+  - stage: DeployToWP
+    dependsOn: [GetLatestOmniaVersion, DeployToOmnia]
+    condition: succeeded()
+    variables:
+      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.VersionTagToRelease'] ]
+      BuildTag: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.BuildTagUsedInRelease'] ]
+    displayName: "Deploy WP"
+    jobs:
+      - job: DeployJob
+        pool: ${{parameters.PoolName}}
+        displayName: "Deploy WP"
+        steps:
+          - checkout: none
+          - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
+            parameters:
+              BuildTag: $(BuildTag)
+              Version: $(Version)
+              TenantId: $(TenantId)
+              CloudClientId: "$(ProdCloudClientId)"
+              CloudClientSecret: "$(ProdCloudClientSecret)"
+              Environment: "prod"
+              ExtensionId: "d5bf3472-ddc6-44a9-b78b-6c52b2dfedea"
+              ExtensionName: "WP"
+
+  - stage: DeployToWCM
+    dependsOn: [GetLatestOmniaVersion, DeployToWP]
+    condition: succeeded()
+    variables:
+      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.VersionTagToRelease'] ]
+      BuildTag: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.BuildTagUsedInRelease'] ]
+    displayName: "Deploy WCM"
+    jobs:
+      - job: DeployJob
+        pool: ${{parameters.PoolName}}
+        displayName: "Deploy WCM"
+        steps:
+          - checkout: none
+
+          - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
+            parameters:
+              BuildTag: $(BuildTag)
+              Version: $(Version)
+              TenantId: $(TenantId)
+              CloudClientId: "$(ProdCloudClientId)"
+              CloudClientSecret: "$(ProdCloudClientSecret)"
+              Environment: "prod"
+              ExtensionId: "ff629048-1044-4cd5-b0d5-1e2f920f6374"
+              ExtensionName: "WCM"
+
+  - stage: DeployToMS
+    dependsOn: [GetLatestOmniaVersion, DeployToWCM]
+    condition: succeeded()
+    variables:
+      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.VersionTagToRelease'] ]
+      BuildTag: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.BuildTagUsedInRelease'] ]
+    displayName: "Deploy MS"
+    jobs:
+      - job: DeployJob
+        pool: ${{parameters.PoolName}}
+        displayName: "Deploy MS"
+        steps:
+          - checkout: none
+
+          - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
+            parameters:
+              BuildTag: $(BuildTag)
+              Version: $(Version)
+              TenantId: $(TenantId)
+              CloudClientId: "$(ProdCloudClientId)"
+              CloudClientSecret: "$(ProdCloudClientSecret)"
+              Environment: "prod"
+              ExtensionId: "4d5013fe-0c01-4e7c-9664-b7f28e9013e3"
+              ExtensionName: "MS"
+
+  - stage: DeployToAnalytics
+    dependsOn: [GetLatestAnalyticsVersion, DeployToMS]
+    condition: succeeded()
+    variables:
+      Version: $[ stageDependencies.GetLatestAnalyticsVersion.LatestVersionJob.outputs['EnsureVariables.VersionTagToRelease'] ]
+      BuildTag: $[ stageDependencies.GetLatestAnalyticsVersion.LatestVersionJob.outputs['EnsureVariables.BuildTagUsedInRelease'] ]
+    displayName: "Deploy Analytics"
+    jobs:
+      - job: DeployJob
+        pool: ${{parameters.PoolName}}
+        displayName: "Deploy Analytics"
+        steps:
+          - checkout: none
+
+          - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
+            parameters:
+              BuildTag: $(BuildTag)
+              Version: $(Version)
+              TenantId: $(TenantId)
+              CloudClientId: "$(ProdCloudClientId)"
+              CloudClientSecret: "$(ProdCloudClientSecret)"
+              Environment: "prod"
+              ExtensionId: "c187b4f7-9b18-4eea-a549-ae3afa3d6888"
+              ExtensionName: "Analytics"
+
+  - stage: DeployToFeed
+    dependsOn: [GetLatestFeedVersion, DeployToMS]
+    condition: succeeded()
+    variables:
+      Version: $[ stageDependencies.GetLatestFeedVersion.LatestFeedVersionJob.outputs['EnsureFeedVariables.VersionTagToRelease'] ]
+      BuildTag: $[ stageDependencies.GetLatestFeedVersion.LatestFeedVersionJob.outputs['EnsureFeedVariables.BuildTagUsedInRelease'] ]
+    displayName: "Deploy Feed"
+    jobs:
+      - job: DeployJob
+        pool: ${{parameters.PoolName}}
+        displayName: "Deploy Feed"
+        steps:
+          - checkout: none
+
+          - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
+            parameters:
+              BuildTag: $(BuildTag)
+              Version: $(Version)
+              TenantId: $(TenantId)
+              CloudClientId: "$(ProdCloudClientId)"
+              CloudClientSecret: "$(ProdCloudClientSecret)"
+              Environment: "prod"
+              ExtensionId: "94418fb5-2a96-4f20-9c80-e2f27a0a62f0"
+              ExtensionName: "Feed"

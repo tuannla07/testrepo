@@ -1,0 +1,24 @@
+{
+    "name": "OmniaSSO",
+    "version": "0.1.1",
+    "description": "Add support to use Omnia SSO",
+    "keywords": ["authentication", "login", "sso"],
+    "license": "",
+    "homepage": "",
+    "authors": [
+        {
+            "name": "Omnia Digital Workplace AB",
+            "email": "omniasupport@omniaintranet.com",
+            "homepage": "https://omniaintranet.com"
+        }
+    ],
+    "require": {
+        "piwik": ">=5.0.0",
+        "php": ">=7.0.0"
+    },
+    "support": {
+        "email": "omniasupport@omniaintranet.com",
+        "issues": "",
+        "source": ""
+    }
+}

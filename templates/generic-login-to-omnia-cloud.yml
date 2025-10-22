@@ -1,0 +1,67 @@
+#############################################################################################################
+# Generic Login to Omnia Cloud Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template logs in to Omnia Cloud using the provided client credentials.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - Environment: The Omnia Cloud environment to log in to (default: dev)
+# - CloudClientId: The client ID for Omnia Cloud authentication
+# - CloudClientSecret: The client secret for Omnia Cloud authentication
+# - CloudApiAppId: The App ID for the Cloud API
+# - CloudApiUrl: The URL for the Cloud API
+# - ApiAppBase: The base URL for the API app
+# - CliAppId: The CLI App ID for Omnia Cloud authentication
+#############################################################################################################
+
+parameters:
+  - name: Environment
+    type: string
+    default: "dev"
+
+  - name: CloudClientId
+    type: string
+
+  - name: CloudClientSecret
+    type: string
+
+  - name: CloudApiAppId
+    type: string
+    default: ""
+
+  - name: CloudApiUrl
+    type: string
+    default: ""
+
+  - name: ApiAppBase
+    type: string
+    default: ""
+
+  - name: CliAppId
+    type: string
+    default: ""
+steps:
+  - script: |
+      set -euo pipefail
+      echo "Logging in to Omnia Cloud..."
+
+      if [ -z "${{parameters.CloudClientId}}" ]; then
+        echo "CloudClientId is not set. Please provide a valid CloudClientId."
+        exit 1
+      fi
+      if [ -z "${{parameters.CloudClientSecret}}" ]; then
+        echo "CloudClientSecret is not set. Please provide a valid CloudClientSecret."
+        exit 1
+      fi
+
+      if [ ! -z "${{parameters.CloudApiUrl}}" ]
+      then
+          echo "Using custom environment for login"
+          $HOME/.dotnet/tools/omnia env switch custom --cloudapiurl ${{parameters.CloudApiUrl}} --cloudapiappid ${{parameters.CloudApiAppId}}  --cliappid ${{parameters.CliAppId}} --cloudapiappuribase ${{parameters.ApiAppBase}}
+      else
+          echo "Using built in environments for login: ${{parameters.Environment}}"
+          $HOME/.dotnet/tools/omnia env switch ${{parameters.Environment}}
+      fi
+
+      $HOME/.dotnet/tools/omnia login --clientId "${{parameters.CloudClientId}}" --clientSecret "${{parameters.CloudClientSecret}}"
+
+    displayName: "Login to Omnia Cloud"

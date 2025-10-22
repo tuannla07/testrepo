@@ -1,0 +1,80 @@
+#############################################################################################################
+# Generic .NET and NPM Initialization Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template initializes the build agent with the specified .NET SDK version,
+# installs the Omnia CLI tool, and sets up NPM with a specific version.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - dotnetVersion: The version of the .NET SDK to install (default: 9.0.101)
+# - Tag: The tag to use for NPM installation (default: preview)
+# - ExcludeGlobalJson: If true, the .NET SDK installation will not use global.json (default: false)
+# - ExcludeNpmInstall: If true, the NPM installation step will be skipped (default: false)
+#############################################################################################################
+
+parameters:
+  - name: dotnetVersion
+    type: string
+    default: "9.0.101"
+
+  - name: Tag
+    type: string
+    default: "preview"
+
+  - name: ExcludeGlobalJson
+    type: boolean
+    default: false
+
+  - name: ExcludeNpmInstall
+    type: boolean
+    default: false
+
+steps:
+  # -----------------------------------------------------------------------------------------------------------
+  # INSTALL DOTNET GLOBAL.JSON
+  # -----------------------------------------------------------------------------------------------------------
+  - task: UseDotNet@2
+    displayName: "Use .Net Core sdk (Global.json) "
+    condition: and(succeeded(), eq('${{ parameters.ExcludeGlobalJson }}', false))
+    inputs:
+      useGlobalJson: true
+
+  # -----------------------------------------------------------------------------------------------------------
+  # INSTALL DOTNET ${{ parameters.dotnetVersion }}
+  # -----------------------------------------------------------------------------------------------------------
+  - task: UseDotNet@2
+    displayName: "Use .Net Core sdk (${{ parameters.dotnetVersion }})"
+    inputs:
+      version: ${{ parameters.dotnetVersion }}
+
+  # -----------------------------------------------------------------------------------------------------------
+  # INSTALL OMNIA CLI
+  # -----------------------------------------------------------------------------------------------------------
+  - bash: |
+      tools=`dotnet tool list -g`
+      check='omnia'
+      if [[ "$tools" =~ .*"$check".* ]]; then
+        echo "Tool 'Omnia' is already installed."
+      else
+          dotnet tool install --global Omnia
+      fi
+    displayName: "Install Omnia Cli"
+
+  # -----------------------------------------------------------------------------------------------------------
+  # INSTALL NODE 14.16.0
+  # -----------------------------------------------------------------------------------------------------------
+  # - task: NodeTool@0
+  #   displayName: 'Install Node 14.16.0'
+  #   inputs:
+  #     versionSpec: 14.16.0
+
+  # -----------------------------------------------------------------------------------------------------------
+  # INSTALL NPM 10.9.1
+  # -----------------------------------------------------------------------------------------------------------
+  - bash: |
+      # Seems like npm > then this version is really slow on restoring
+      # https://github.com/actions/virtual-environments/issues/4284
+
+      sudo npm install npm@10.9.1 -g
+
+    displayName: "Install NPM 10.9.1"
+    condition: and(succeeded(), ne('${{ parameters.Tag }}', 'dev'), ne('${{ parameters.ExcludeNpmInstall }}', 'true'))

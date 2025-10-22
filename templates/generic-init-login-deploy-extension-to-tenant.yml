@@ -1,0 +1,63 @@
+##################################################
+# Template to init, login and deploy extension to tenant
+# Usage:
+# - template: "generic-init-login-deploy-extension-to-tenant.yml"
+#   parameters:
+#     BuildTag: <BuildTag> - The tag to use when installing Omnia CLI tools, e.g. "latest" or "preview"
+#     Version: <Version> - The version of the extension to deploy
+#     TenantId: <TenantId> - The tenant id to deploy the extension to
+#     CloudClientId: <CloudClientId> - The client id to use when logging in to the cloud
+#     CloudClientSecret: <CloudClientSecret> - The client secret to use when logging in to the cloud
+#     Environment: <Environment> - The environment to deploy to, e.g. "test" or "prod"
+#     ExtensionId: <ExtensionId> - The extension id to deploy
+#     ExtensionName: <ExtensionName> - The (short)name of the extension to deploy used in display
+##################################################
+
+parameters:
+  - name: BuildTag
+    type: string
+
+  - name: Version
+    type: string
+
+  - name: TenantId
+    type: string
+
+  - name: CloudClientId
+    type: string
+
+  - name: CloudClientSecret
+    type: string
+
+  - name: Environment
+    type: string
+    default: "test"
+    values:
+      - "test"
+      - "prod"
+
+  - name: ExtensionId
+    type: string
+
+  - name: ExtensionName
+    type: string
+
+steps:
+  - template: ../templates/generic-init-dotnet-omnia-npm.yml
+    parameters:
+      dotnetVersion: "9.0.101"
+      Tag: ${{ parameters.BuildTag }}
+      ExcludeGlobalJson: true
+
+  - template: ../templates/generic-login-to-omnia-cloud.yml
+    parameters:
+      Environment: ${{ parameters.Environment }}
+      CloudClientId: ${{ parameters.CloudClientId }}
+      CloudClientSecret: ${{ parameters.CloudClientSecret }}
+
+  - template: ../templates/generic-deploy-extension-to-tenant.yml
+    parameters:
+      ExtensionId: ${{ parameters.ExtensionId }}
+      Version: ${{ parameters.Version }}
+      TenantId: ${{ parameters.TenantId }}
+      ExtensionName: ${{ parameters.ExtensionName }}

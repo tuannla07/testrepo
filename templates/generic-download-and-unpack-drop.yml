@@ -1,0 +1,62 @@
+############################################################################################################
+# This template downloads and unpacks a specified artifact drop.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - DropName: The name of the drop to download (default: "OmniaMainBuild")
+# - WorkspacePath: The path to the workspace where the drop will be unpacked
+# - StripComponents: The number of leading path components to strip from the tar archive (default: 4)
+############################################################################################################
+
+parameters:
+  - name: DropName
+    type: string
+    default: "OmniaMainBuild"
+
+  - name: WorkspacePath
+    type: string
+    default: ""
+
+  - name: StripComponents
+    type: number
+    default: 4
+
+steps:
+  # -----------------------------------------------------------------
+  # download artifact drop
+  # -----------------------------------------------------------------
+  - download: "OmniaMainBuild"
+    artifact: drop
+    displayName: "Download drop"
+
+    # -----------------------------------------------------------------
+    # Unzip drop
+    # -----------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+      if [ -z "${{ parameters.WorkspacePath }}" ]; then
+          echo "WorkspacePath is not set. Please provide a valid WorkspacePath."
+          exit 1
+      fi
+      if [ -z "${{ parameters.DropName }}" ]; then
+          echo "DropName is not set. Please provide a valid DropName."
+          exit 1
+      fi
+
+      cd ${{ parameters.WorkspacePath }}/${{ parameters.DropName }}/drop
+      echo "Unarchiving drop...: ${{ parameters.WorkspacePath }}/${{ parameters.DropName }}/drop"
+
+      echo "---------------------------------------------------------"
+      if [ -f artifacts.tar.gz ]; then
+          echo "artifacts.tar.gz found, unarchiving..."
+
+          # The tar is constucted with full path (agent/_work/x/a/omnia/drop)
+          # --strip-components=4 will remove the first 4 components of the path
+          # and extract the files to the current directory
+          # so all files will be extracted to $(Pipeline.Workspace)/${{ parameters.DropName }}/drop
+
+          tar -zxvf artifacts.tar.gz --strip-components=${{ parameters.StripComponents }} -C $(Build.ArtifactStagingDirectory)
+      else
+          echo "artifacts.tar.gz not found, skipping unarchive."
+      fi
+      cd -
+    displayName: "Unarchive drop"

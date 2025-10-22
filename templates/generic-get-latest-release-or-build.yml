@@ -1,0 +1,70 @@
+################################################################################
+# This template gets the latest release version for a given build
+# definition and if none is found, it can trigger a new release of
+# the latest build.
+# It will also add a build tag to the current build with the released version found
+# with the given TagPrefix.
+# -----------------------------------------------------------------------------
+# parameters:
+#     DefinitionId: <DefinitionId>
+#     TagPrefix: <TagPrefix>  -  The prefix to use for the build tag added, e.g. "Omnia"
+#     FailIfNoRelease: <true|false> # Optional, default is false - If true, the script will fail if no latest release is found.
+################################################################################
+
+parameters:
+  - name: DefinitionId
+    type: string
+
+  - name: TagPrefix
+    type: string
+
+  - name: FailIfNoRelease
+    type: boolean
+    default: false
+
+steps:
+  - script: |
+      set -euo pipefail
+      if [ -z "${{ parameters.DefinitionId }}" ]; then
+        echo "DefinitionId is not set. Please provide a valid DefinitionId."
+        exit 1
+      fi
+
+      if [ -z "${{ parameters.TagPrefix }}" ]; then
+          echo "TagPrefix is not set. Please provide a valid TagPrefix."
+          exit 1
+      fi
+    displayName: "Validate parameters"
+
+  - template: "generic-get-latest-release-version.yml"
+    parameters:
+      DefinitionId: ${{ parameters.DefinitionId }}
+
+  - script: |
+      set -euo pipefail
+
+      echo "ShouldBuild: $(ShouldBuild)"
+
+      ShouldBuild="$(ShouldBuild)"
+      FailIfNoRelease=${{ parameters.FailIfNoRelease }}
+
+      if [ "$ShouldBuild" = "true" ] && [ "$FailIfNoRelease" = "true" ]; then
+        echo "Missing latest release on ${{ parameters.TagPrefix }}. Failing as per configuration."
+        exit 1
+      fi
+
+    displayName: "Verify latest release found"
+
+  - template: "generic-run-new-release-of-build.yml"
+    parameters:
+      DefinitionId: ${{ parameters.DefinitionId }}
+      BuildConfigUsedInRelease: $(BuildConfigUsedInRelease)
+      BuildPoolUsedInRelease: $(BuildPoolUsedInRelease)
+      SourceBranch: $(Build.SourceBranch)
+      ShouldBuild: $(ShouldBuild)
+
+  - script: |
+      echo "Tag used in latest release (LatestReleaseVersionTag): $(LatestReleaseVersionTag)"
+      echo "##vso[build.addbuildtag]${{ parameters.TagPrefix }}-$(LatestReleaseVersionTag)"
+    name: EnsureVariables
+    displayName: "Ensure variables"

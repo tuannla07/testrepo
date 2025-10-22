@@ -1,0 +1,35 @@
+parameters:
+  - name: ArtifactPath
+    type: string
+    default: ""
+
+steps:
+  # -----------------------------------------------------------------------------------------------------------
+  # ARTIFACTS: Create artifacts.zip (all in ArtifactPath)
+  # -----------------------------------------------------------------------------------------------------------
+  - script: |
+      sudo apt-get install -y zip
+    displayName: 'Install zip utility'
+
+  - script: |
+      set -euo pipefail
+
+      cd $SRC_PATH
+
+      zip -r "$SRC_ZIP/artifacts.zip" "$SRC_PATH"
+      cp "$SRC_ZIP/artifacts.zip" "$SRC_PATH"
+      cd -
+    env:
+      SRC_PATH: "${{ parameters.ArtifactPath }}"
+      SRC_ZIP: "$(Build.ArtifactStagingDirectory)"
+    displayName: "Create artifacts.zip"
+
+    # -----------------------------------------------------------------------------------------------------------
+    # PUBLISH ARTIFACTS (artifacts.tar.gz)
+    # -----------------------------------------------------------------------------------------------------------
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: "${{ parameters.ArtifactPath }}/artifacts.zip"
+      ArtifactName: "drop"
+      publishLocation: "Container"
+    displayName: "Publish Artifact: drop"

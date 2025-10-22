@@ -1,0 +1,127 @@
+############################################################################################################
+# Generic Extension Build to Repository and Cloud Template
+#-----------------------------------------------------------------------------------------------------------
+# This template builds an Omnia extension, publishes its Docker image,
+# and pushes the extension to Omnia Cloud.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - Version: The version of the extension to build and push (e.g., 1.0.0)
+# - CloudClientId: The client ID for Omnia Cloud authentication
+# - CloudClientSecret: The client secret for Omnia Cloud authentication
+# - ExtensionId: The ID of the extension to push
+# - Intent: The intent for the push operation (e.g., dev, prod)
+# - Environment: The environment for the push operation (e.g., dev, test, prod)
+# - ExtensionJsonPath: The path to the extension.json file
+# - CloudApiAppId: The App ID for the Cloud API
+# - CloudApiUrl: The URL for the Cloud API
+# - ApiAppBase: The base URL for the API app
+# - CliAppId: The CLI App ID for Omnia Cloud authentication
+# - ExtensionName: The name of the extension (default: "N/A")
+############################################################################################################
+
+parameters:
+  - name: Version
+    type: string
+    default: ""
+
+  - name: CloudClientId
+    type: string
+    default: ""
+
+  - name: CloudClientSecret
+    type: string
+    default: ""
+
+  - name: ExtensionId
+    type: string
+    default: ""
+
+  - name: Intent
+    type: string
+    default: "dev"
+    values:
+      - "dev"
+      - "prod"
+
+  - name: Environment
+    type: string
+    default: "dev"
+    values:
+      - "dev"
+      - "test"
+      - "prod"
+
+  - name: ExtensionJsonPath
+    type: string
+    default: ""
+
+  - name: CloudApiAppId
+    type: string
+    default: ""
+
+  - name: CloudApiUrl
+    type: string
+    default: ""
+
+  - name: ApiAppBase
+    type: string
+    default: ""
+
+  - name: CliAppId
+    type: string
+    default: ""
+  - name: ExtensionName
+    type: string
+    default: "N/A"
+
+steps:
+  # -----------------------------------------------------------------------------------------------------------
+  # BUILD EXTENSION AND PUSH TO DOCKER/AZ CONTAINER REGISTRY
+  # -----------------------------------------------------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+      if [ -z "${{parameters.Version}}" ]; then
+        echo "Version is not set. Please provide a valid Version."
+        exit 1
+      fi
+      if [ -z "${{parameters.ExtensionJsonPath }}" ]; then
+        echo "ExtensionJsonPath is not set. Please provide a valid ExtensionJsonPath."
+        exit 1
+      fi
+
+      $HOME/.dotnet/tools/omnia dev publish -p "${{parameters.ExtensionJsonPath}}" -v "${{parameters.Version}}" --dotnetpublish false
+    displayName: "${{parameters.ExtensionName}} - Publish Docker image"
+
+  # -----------------------------------------------------------------------------------------------------------
+  # LOGIN TO OMNIA CLOUD
+  # -----------------------------------------------------------------------------------------------------------
+  - template: generic-login-to-omnia-cloud.yml
+    parameters:
+      Environment: ${{parameters.Environment}}
+      CloudClientId: ${{parameters.CloudClientId}}
+      CloudClientSecret: ${{parameters.CloudClientSecret}}
+      CloudApiAppId: ${{parameters.CloudApiAppId}}
+      CloudApiUrl: ${{parameters.CloudApiUrl}}
+      ApiAppBase: ${{parameters.ApiAppBase}}
+      CliAppId: ${{parameters.CliAppId}}
+
+  # -----------------------------------------------------------------------------------------------------------
+  # PUSH EXTENSION TO OMNIACLOUD
+  # -----------------------------------------------------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+      if [ -z "${{parameters.ExtensionId}}" ]; then
+        echo "ExtensionId is not set. Please provide a valid ExtensionId."
+        exit 1
+      fi
+      if [ -z "${{parameters.Version}}" ]; then
+        echo "Version is not set. Please provide a valid Version."
+        exit 1
+      fi
+      if [ -z "${{parameters.Intent}}" ]; then
+        echo "Intent is not set. Please provide a valid Intent."
+        exit 1
+      fi
+
+      $HOME/.dotnet/tools/omnia extensions push "${{parameters.ExtensionId}}:${{parameters.Version}}" -i ${{parameters.Intent}}
+    displayName: "${{parameters.ExtensionName}} - Push Extension"

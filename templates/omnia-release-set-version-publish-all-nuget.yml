@@ -1,0 +1,130 @@
+############################################################################################################
+# Omnia Release Set Version and Publish All NuGet Packages Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template builds and publishes all Omnia NuGet packages to the specified NuGet feed.
+# If the Tag parameter is set to "latest", it also pushes the packages to nuget.org.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - Version: The version of the NuGet packages to build and publish
+# - Tag: The tag to use for the build (e.g., "preview", "latest")
+# - BuildConfiguration: The build configuration to use (default: "release")
+# - LocalPath: The local path to the Omnia source code
+# - NugetFeed: The NuGet feed URL to publish the packages to
+# - nugetParameters: Additional parameters to pass to the dotnet pack command
+#############################################################################################################
+
+parameters:
+  - name: Version
+    type: string
+    default: ""
+
+  - name: Tag
+    type: string
+    default: "preview"
+
+  - name: BuildConfiguration
+    type: string
+    default: "release"
+
+  - name: LocalPath
+    type: string
+    default: ""
+
+  - name: NugetFeed
+    type: string
+    default: ""
+
+  - name: nugetParameters
+    type: string
+    default: '-p:Authors="Omnia Digital Workplace AB" -p:Company="Omnia Digital Workplace AB" -p:Owner="Omnia Digital Workplace AB" -p:Copyright="Copyright © Omnia Digital Workplace AB $(date +%Y)"'
+
+steps:
+  - task: NuGetAuthenticate@1
+    displayName: "NuGet Authenticate"
+
+  - script: |
+      echo "$(npmFeedConnection):_authToken=$(VSS_NUGET_ACCESSTOKEN)" > ~/.npmrc
+    displayName: "NPM Authenticate"
+
+  # -----------------------------------------------------------------
+  # Build Nuget packages
+  # -----------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+
+      if [ -z "${{parameters.Version}}" ]; then
+        echo "Version is not set. Please provide a valid Version."
+        exit 1
+      fi
+      if [ -z "${{parameters.Tag}}" ]; then
+        echo "Tag is not set. Please provide a valid Tag."
+        exit 1
+      fi
+      if [ -z "${{parameters.LocalPath}}" ]; then
+        echo "LocalPath is not set. Please provide a valid LocalPath."
+        exit 1
+      fi
+
+      if [ -z "${{parameters.NugetFeed}}" ]; then
+        echo "NugetFeed is not set. Please provide a valid NugetFeed."
+        exit 1
+      fi
+
+      echo "Version: ${{parameters.Version}}"
+      echo "Tag: ${{parameters.Tag}}"
+      echo "BuildConfiguration: ${{parameters.BuildConfiguration}}"
+      echo "LocalPath: ${{parameters.LocalPath}}"
+      echo "ArtifactStagingDirectory: $(Build.ArtifactStagingDirectory)"
+      echo "NugetFeed: ${{parameters.NugetFeed}}"
+      echo "NugetParameters: ${{parameters.nugetParameters}}"
+
+      cd ${{parameters.LocalPath}}/src/omnia
+
+      dotnet pack ${{parameters.LocalPath}}/src/omnia/Omnia.Fx/Omnia.Fx.csproj  ${{ parameters.nugetParameters}} -p:Description="Omnia FX Library" -p:PackageVersion=${{parameters.Version}}  --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/omnia/Omnia.Fx.Models/Omnia.Fx.Models.csproj  ${{ parameters.nugetParameters}} -p:Description="Omnia FX Models Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/omnia/Omnia.Fx.NetCore/Omnia.Fx.NetCore.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia FX NetCore Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/omnia/Omnia.Fx.NetCore.Runtime/Omnia.Fx.NetCore.Runtime.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia FX NetCore Runtime Library"  -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/omnia/Omnia.Fx.NetCore.SharePoint/Omnia.Fx.NetCore.SharePoint.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia FX NetCore SharePoint Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/omnia/Omnia.Fx.NetCore.SharePoint.WebApp/Omnia.Fx.NetCore.SharePoint.WebApp.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia FX NetCore SharePoint WebApp Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/omnia/Omnia.Fx.NetCore.Worker/Omnia.Fx.NetCore.Worker.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia FX NetCore Worker Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/omnia/Omnia.Fx.SharePoint/Omnia.Fx.SharePoint.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia FX SharePoint Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+
+      cd ${{parameters.LocalPath}}/src/workplace
+
+      dotnet pack ${{parameters.LocalPath}}/src/workplace/Omnia.Workplace.Fx/Omnia.Workplace.Fx.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia Workplace FX Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/workplace/Omnia.Worksplace.Models/Omnia.Workplace.Models.csproj  -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages ${{ parameters.nugetParameters}} -p:Description="Omnia Workplace Models Library" --configuration=${{parameters.BuildConfiguration}}
+
+      cd ${{parameters.LocalPath}}/src/webcontentmanagement
+
+      dotnet pack ${{parameters.LocalPath}}/src/webcontentmanagement/Omnia.WebContentManagement.Fx/Omnia.WebContentManagement.Fx.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia WebContentManagement FX Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/webcontentmanagement/Omnia.WebContentManagement.Fx.NetCore.WebApp/Omnia.WebContentManagement.Fx.NetCore.WebApp.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia WebContentManagement FX NetCore Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/webcontentmanagement/Omnia.WebContentManagement.Models/Omnia.WebContentManagement.Models.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia WebContentManagement FX Models Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+
+      cd ${{parameters.LocalPath}}/src/managementsystem
+
+      dotnet pack ${{parameters.LocalPath}}/src/managementsystem/Omnia.ManagementSystem.Fx/Omnia.ManagementSystem.Fx.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia ManagementSystem FX Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+      dotnet pack ${{parameters.LocalPath}}/src/managementsystem/Omnia.ManagementSystem.Models/Omnia.ManagementSystem.Models.csproj ${{ parameters.nugetParameters}} -p:Description="Omnia ManagementSystem Models Library" -p:PackageVersion=${{parameters.Version}} --output $(Build.ArtifactStagingDirectory)/NugetPackages --configuration=${{parameters.BuildConfiguration}}
+
+      cd ${{parameters.LocalPath}}
+    displayName: "Build Nuget packages"
+
+  # -----------------------------------------------------------------
+  # Push Nuget
+  # -----------------------------------------------------------------
+
+  - script: |
+      dotnet nuget push "$(Build.ArtifactStagingDirectory)/NugetPackages/*.nupkg" \
+        --source "${{parameters.NugetFeed}}" \
+        --api-key az --skip-duplicate
+    displayName: "Push NuGet Packages to Azure Artifacts"
+
+  - script: |
+      if [ "${{parameters.Tag}}" != "latest" ]; then
+        echo "Skipping push to nuget.org as Tag is not 'latest'."
+        exit 0
+      fi
+
+      dotnet nuget push "$(Build.ArtifactStagingDirectory)/NugetPackages/*.nupkg" \
+        --source "https://api.nuget.org/v3/index.json" \
+        --api-key "$(NugetKey)" --skip-duplicate
+    displayName: "Push NuGet Packages to Nuget.org"

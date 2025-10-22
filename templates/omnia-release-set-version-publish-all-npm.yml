@@ -1,0 +1,428 @@
+############################################################################################################
+# Omnia Release Set Version and Publish All NPM Packages Pipeline Template
+#-----------------------------------------------------------------------------------------------------------
+# This template sets the versions in the Omnia NPM packages and publishes them to the specified NPM feed.
+# If the tag is "latest", the packages are also published to NPMJS.org.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - Version: The version to set for the NPM packages
+# - Tag: The tag to use when publishing the NPM packages (default: "preview")
+# - LocalPath: The local path where the build artifacts are located
+# - ResourcePath: The resource path containing version replacement files
+# - NpmFeed: The NPM feed to publish the packages to
+#############################################################################################################
+
+parameters:
+  - name: Version
+    type: string
+    default: ""
+
+  - name: Tag
+    type: string
+    default: "preview"
+
+  - name: LocalPath
+    type: string
+    default: ""
+
+  - name: ResourcePath
+    type: string
+    default: ""
+
+  - name: NpmFeed
+    type: string
+    default: ""
+
+steps:
+  - script: |
+      set -euo pipefail
+
+      if [ -z "${{ parameters.Version }}" ]; then
+        echo "Version is not set. Please provide a valid Version."
+        exit 1
+      fi
+
+      if [ -z "${{ parameters.Tag }}" ]; then
+        echo "Tag is not set. Please provide a valid Tag."
+        exit 1
+      fi
+
+      if [ -z "${{ parameters.LocalPath }}" ]; then
+        echo "LocalPath is not set. Please provide a valid LocalPath."
+        exit 1
+      fi
+
+      if [ -z "${{ parameters.ResourcePath }}" ]; then
+        echo "ResourcePath is not set. Please provide a valid ResourcePath."
+        exit 1
+      fi
+
+      if [ -z "${{ parameters.NpmFeed }}" ]; then
+        echo "NpmFeed is not set. Please provide a valid NpmFeed."
+        exit 1
+      fi
+
+
+      cd ${{ parameters.ResourcePath }}/resources
+      jq '.toReplace |= with_entries(if .value == "BuildNumber" then .value = "${{parameters.Version}}" else . end)' omnia-release-versions-toReplace.json > temp.json && mv -f temp.json omnia-release-versions-toReplace.json
+      cd -
+    displayName: "NPM: Prepare version replacements"
+
+  - script: |
+      echo "$(npmFeedConnection):_authToken=$(VSS_NUGET_ACCESSTOKEN)" > ~/.npmrc
+    displayName: "NPM Authenticate"
+
+  - script: |
+      set -euo pipefail
+
+      paths=(
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-fx"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-models"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-msteams"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-sp"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-spfx"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-sp-models"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-runtime"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-tooling"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-tooling-composers"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-tooling-vue"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-types"
+        "omnia/Omnia.Web.App/wwwroot/packages/omnia-velcron"
+        "workplace/Omnia.Workplace.Web/wwwroot/packages/workplace"
+        "webcontentmanagement/Omnia.WebContentManagement.Web/wwwroot/packages/wcm"
+        "managementsystem/Omnia.ManagementSystem.Web/wwwroot/packages/management-system"
+      )
+
+      for pkg_path in "${paths[@]}"; do
+          echo "Version replacement in - $pkg_path"
+          cd "$(Build.ArtifactStagingDirectory)/$pkg_path"
+
+          echo "Replacing version in .dependencies"
+          jq --slurpfile toReplace ${{ parameters.ResourcePath }}/resources/omnia-release-versions-toReplace.json '.dependencies |= with_entries(if .key | in($toReplace[0].toReplace) then .value = $toReplace[0].toReplace[.key] else . end)' package.json > temp.json && mv -f temp.json package.json
+          echo "Replacing version in .devDependencies"
+          jq --slurpfile toReplace ${{ parameters.ResourcePath }}/resources/omnia-release-versions-toReplace.json '.devDependencies |= with_entries(if .key | in($toReplace[0].toReplace) then .value = $toReplace[0].toReplace[.key] else . end)' package.json > temp.json && mv -f temp.json package.json
+          echo "Replacing version in .version"
+          jq '.version = "${{parameters.Version}}"' package.json > temp.json && mv -f temp.json package.json
+
+          cd -
+      done
+
+    displayName: "NPM: Replace version in package.json"
+
+  - script: |
+      echo "##vso[task.setvariable variable=Tag]${{ parameters.Tag }}"
+    displayName: "Set Tag as variable"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Models to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-models"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX MSteams to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-msteams"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Sp to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-sp"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Spfx to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-spfx"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Sp Models to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-sp-models"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Runtime to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-runtime"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Tooling to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-tooling"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Tooling Composers to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-tooling-composers"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Tooling Vue to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-tooling-vue"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Types to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-types"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Velcron to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-velcron"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Workplace to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/workplace/Omnia.Workplace.Web/wwwroot/packages/workplace"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX WCM to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/webcontentmanagement/Omnia.WebContentManagement.Web/wwwroot/packages/wcm"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Management System to Artifacts"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/managementsystem/Omnia.ManagementSystem.Web/wwwroot/packages/management-system"
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customRegistry: useFeed
+      customFeed: "${{ parameters.NpmFeed }}"
+
+  # ------------------------------------------------------
+  # Publish only if tag is latest
+  # ------------------------------------------------------
+  - task: Npm@1
+    displayName: "NPM Publish: FX to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Models to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-models"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX MSteams to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-msteams"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Sp to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-sp"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Spfx to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-spfx"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Sp Models to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-fx-sp-models"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Runtime to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-runtime"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Tooling to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-tooling"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Tooling Composers to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-tooling-composers"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Tooling Vue to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-tooling-vue"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Types to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-types"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Velcron to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/omnia/Omnia.Web.App/wwwroot/packages/omnia-velcron"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Workplace to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/workplace/Omnia.Workplace.Web/wwwroot/packages/workplace"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX WCM to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/webcontentmanagement/Omnia.WebContentManagement.Web/wwwroot/packages/wcm"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  - task: Npm@1
+    displayName: "NPM Publish: FX Management System to NPMJS.org"
+    inputs:
+      command: "custom"
+      workingDir: "$(Build.ArtifactStagingDirectory)/managementsystem/Omnia.ManagementSystem.Web/wwwroot/packages/management-system"
+      verbose: false
+      customCommand: "publish --access=public --tag=$(Tag)"
+      customEndpoint: "omnia npm connection"
+      publishEndpoint: "omnia npm connection"
+    condition: and(succeeded(), eq(variables['Tag'], 'latest'))
+
+  # - task: Npm@1
+  #   displayName: 'Publish Npm Package @omnia/mobile'
+  #   inputs:
+  #     command: custom
+  #     workingDir: 'src/Omnia.Web.App/wwwroot/packages/omnia-mobile'
+  #     verbose: false
+  #     customCommand: 'publish --access=public --tag=$(Tag)'
+  #     customEndpoint: 'omnia npm connection'
+  #     publishEndpoint: 'omnia npm connection'
+  #   condition: and(succeeded(), eq(variables['Tag'], 'latest'))
