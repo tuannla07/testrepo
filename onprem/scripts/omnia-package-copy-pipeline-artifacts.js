@@ -12,12 +12,12 @@ console.log(folders);
 /////////////////////////////////////////////////////////////////////////////////////
 
 
-const srcFolder = "" //$(Build.SourcesDirectory);
-const destDir = "C:\\tmp"; //$(System.ArtifactsDirectory);
-//const destPackageFolders = destinationFolder + "/packages";
+const srcFolder = $(Build.SourcesDirectory);
+const destDir = $(System.ArtifactsDirectory);
+const destPackageFolders = destDir + "/packages";
 
-if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(packageFolders, { recursive: true});
+if (!fs.existsSync(destPackageFolders)) {
+    fs.mkdirSync(destPackageFolders, { recursive: true});
 }
 
 // copy package template to destination packages folder
