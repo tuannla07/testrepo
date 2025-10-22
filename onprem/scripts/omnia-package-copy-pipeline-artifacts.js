@@ -1,12 +1,6 @@
 const fs = require("fs-extra");
 const path = require("path");
 
-const incomingArgs = process.argv.slice(2);
-if (incomingArgs.length < 3) {
-  console.error('Please provide: artifacts directory, src directory and comma-separated package names.');
-  process.exit(1);
-}
-
 const currentPath = process.cwd();
 
 const folders = fs.readdirSync(currentPath)
