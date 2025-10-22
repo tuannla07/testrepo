@@ -14,7 +14,7 @@ console.log(folders);
 
 const srcFolder = "" //$(Build.SourcesDirectory);
 const destDir = "C:\\tmp"; //$(System.ArtifactsDirectory);
-const destPackageFolders = destinationFolder + "/packages";
+//const destPackageFolders = destinationFolder + "/packages";
 
 if (!fs.existsSync(destDir)) {
     fs.mkdirSync(packageFolders, { recursive: true});
