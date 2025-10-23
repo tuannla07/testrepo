@@ -30,7 +30,7 @@ console.log('Script dir:', __dirname);
 console.log('Resolved template path:', path.resolve(__dirname, '../package-templates'));
 
 // copy package template to destination packages folder
-const templateFolder = "onprem/package-templates";
+const templateFolder = path.resolve(__dirname, '../package-templates');
 
 fs.copySync(templateFolder, destDir, {overwrite: true, recursive: true});
-console.log(`Copied artifacts from ${srcFolder} to ${packageFolders}`);
+console.log(`Copied artifacts from ${srcFolder} to ${destPackageFolders}`);
