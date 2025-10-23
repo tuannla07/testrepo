@@ -25,8 +25,12 @@ if (!fs.existsSync(destPackageFolders)) {
     fs.mkdirSync(destPackageFolders, { recursive: true});
 }
 
+console.log('Current working dir:', process.cwd());
+console.log('Script dir:', __dirname);
+console.log('Resolved template path:', path.resolve(__dirname, '../package-templates'));
+
 // copy package template to destination packages folder
-const templateFolder = "../package-templates";
+const templateFolder = "onprem/package-templates";
 
 fs.copySync(templateFolder, destDir, {overwrite: true, recursive: true});
 console.log(`Copied artifacts from ${srcFolder} to ${packageFolders}`);
