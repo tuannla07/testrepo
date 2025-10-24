@@ -1,0 +1,36 @@
+parameters:
+  - name: "PoolName"
+    type: string
+    default: "Azure Pipelines"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+trigger: none
+
+resources:
+  repositories:
+    - repository: OmniaPipelines
+      type: github
+      name: "omniaintranet/OmniaPipelines"
+      ref: refs/heads/main
+      endpoint: "omniaintranet"
+
+variables:
+  - group: TestCloud
+  - group: ProdCloud
+  - group: OmniaMono
+
+stages:
+  - template: ../generic/omnia-extensions-release.yml
+    parameters:
+      PoolName: ${{ parameters.PoolName }}
+      MainVersion: $(OmniaMainVersion)
+      Tag: $(PackageTag)
+      ExtensionName: "OmniaMobile"
+      ExtensionId: "94418fb5-2a96-4f20-9c80-e2f27a0a62f0"
+      AutostartDefinitionId: $(FeedAutostartDefinitionId)
+      BuildDefinitionId: $(FeedBuildDefinitionId)
+      VariableName: "FeedNextBuildVersion"
+      BuildVersionNumber: $(FeedNextBuildVersion)
+      LibraryGroupId: $(LibraryGroupId)

@@ -3,9 +3,9 @@
 # It increments the current value by 1 and updates the variable group accordingly.
 #-----------------------------------------------------------------------------------------------------------
 # Parameters:
-# - LibraryGroupId: The ID of the variable group containing the counter variable.
+# - LibraryGroupId: The ID of the variable group containing the variable.
 # - VariableName: The name of the variable to update.
-# - CurrentCounterValue: The current value of the counter variable.
+# - CurrentBuildVersionValue: The current value to update.
 ############################################################################################################
 
 parameters:
@@ -17,7 +17,7 @@ parameters:
     type: string
     default: ""
 
-  - name: CurrentCounterValue
+  - name: CurrentBuildVersionValue
     type: string
     default: ""
 
@@ -30,12 +30,12 @@ steps:
         -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
         "https://dev.azure.com/omnia-source/Omnia/_apis/distributedtask/variablegroups/${{ parameters.LibraryGroupId }}?api-version=7.1-preview.2")
 
-      if ! [[ "${{ parameters.CurrentCounterValue }}" =~ ^[0-9]+$ ]]; then
-        echo "❌ Invalid number in '${{ parameters.VariableName }}': ${{ parameters.CurrentCounterValue }}"
+      if ! [[ "${{ parameters.CurrentBuildVersionValue }}" =~ ^[0-9]+$ ]]; then
+        echo "❌ Invalid number in '${{ parameters.VariableName }}': ${{ parameters.CurrentBuildVersionValue }}"
         exit 1
       fi
 
-      NEW_VALUE=$((${{ parameters.CurrentCounterValue }} + 1))
+      NEW_VALUE=$((${{ parameters.CurrentBuildVersionValue }} + 1))
 
       # Step 2: Update the value in the variables object
       UPDATED_JSON=$(echo "$GROUP_JSON" | jq --arg key "${{ parameters.VariableName }}" --arg value "$NEW_VALUE" \

@@ -1,0 +1,177 @@
+#------------------------------------------------------------------
+# Omnia Extensions Release to Custom Cloud - Release Pipeline
+#------------------------------------------------------------------
+# This pipeline is designed to release Omnia extensions to a custom cloud environment.
+# It ensures the correct versioning and triggers the necessary deployment processes.
+#------------------------------------------------------------------  
+# Parameters:
+# - PoolName: The agent pool to use for the jobs. Default is "Azure Pipelines".
+# - ReleaseVersion: The version of the release to be used.
+# - ExtensionName: The name of the Omnia extension being released.
+# - ExtensionId: The unique identifier of the Omnia extension.
+# - ReleaseDefinitionId: The ID of the release definition to trigger.
+#------------------------------------------------------------------  
+parameters:
+  - name: "PoolName"
+    type: string
+    default: "Azure Pipelines"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+  - name: ReleaseVersion
+    type: string
+
+  - name: ExtensionName
+    type: string
+    default: "N/A"
+
+  - name: ExtensionId
+    type: string
+
+  - name: ReleaseDefinitionId
+    type: string
+
+  - name: BuildDefinitionId
+    type: string
+    default: ""
+#------------------------------------------------------------------
+# EnsureVersion -> Push_ProdCloud_ProdIntent
+#------------------------------------------------------------------
+stages:
+  - stage: EnsureVersion
+    dependsOn: []
+    displayName: "Ensure Version"
+    jobs:
+      - job: EnsureVersionJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        steps:
+          - checkout: OmniaPipelines
+
+          - script: |
+              set -euo pipefail
+        
+              missing_params=()
+              if [[ -z "$(PackageTag)" ]]; then
+                missing_params+=("PackageTag")
+              fi
+              if [[ -z "${{ parameters.ReleaseVersion }}" ]]; then
+                missing_params+=("ReleaseVersion")
+              fi
+              if [[ -z "${{ parameters.ExtensionId }}" ]]; then
+                missing_params+=("ExtensionId")
+              fi
+              if [[ -z "${{ parameters.ReleaseDefinitionId }}" ]]; then
+                missing_params+=("ReleaseDefinitionId")
+              fi
+              if [[ -z "${{ parameters.BuildDefinitionId }}" ]]; then
+                missing_params+=("BuildDefinitionId")
+              fi
+              if [[ -z "$(apiappbase)" ]]; then
+                missing_params+=("ApiAppBase")
+              fi
+              if [[ -z "$(cloudapiappid)" ]]; then
+                missing_params+=("CloudApiAppId")
+              fi
+              if [[ -z "$(cloudapiurl)" ]]; then
+                missing_params+=("CloudApiUrl")
+              fi
+              if [[ -z "$(cliappid)" ]]; then
+                missing_params+=("CliAppId")
+              fi
+              if [[ -z "$(ProdCloudClientId)" ]]; then
+                missing_params+=("ProdCloudClientId")
+              fi
+              
+              if [[ ${#missing_params[@]} -ne 0 ]]; then
+                echo "##vso[task.logissue type=error]Missing or empty parameters: ${missing_params[*]}"
+                exit 1
+              fi
+
+              echo "All parameters are set."
+              echo "---------------------------------------------"
+              echo "- ReleaseVersion: ${{ parameters.ReleaseVersion }}"
+              echo "- ExtensionName: ${{ parameters.ExtensionName }}"
+              echo "- PackageTag: $(PackageTag)"
+              echo "- ExtensionId: ${{ parameters.ExtensionId }}"
+              echo "- ReleaseDefinitionId: ${{ parameters.ReleaseDefinitionId }}"
+              echo "- BuildDefinitionId: ${{ parameters.BuildDefinitionId }}"
+              echo "---------------------------------------------"
+              echo "- ApiAppBase: $(apiappbase)"
+              echo "- CloudApiAppId: $(cloudapiappid)"
+              echo "- CloudApiUrl: $(cloudapiurl)"
+              echo "- CliAppId: $(cliappid)"
+              echo "- CloudClientId: $(ProdCloudClientId)"
+              echo "---------------------------------------------"
+
+            displayName: "Ensure variables"
+            name: EnsureVariablesTask
+
+          - template: ../../templates/generic-set-build-version-number-on-build.yml
+            parameters:
+              ReleaseVersion: "${{ parameters.ReleaseVersion }}"
+
+          - script: |
+              echo "Setting version: ${{ parameters.ReleaseVersion }}"
+              echo "##vso[build.addbuildtag]${{ parameters.ReleaseVersion }}"
+            name: EnsureVersionTask
+            displayName: "Setting build tag"
+
+  # ------------------------------------------------------------------
+  # STAGE: Push Omnia Extensions to Custom Cloud - Prod intent
+  # ------------------------------------------------------------------
+  - stage: Push_ProdCloud_ProdIntent
+    dependsOn: [EnsureVersion]
+    displayName: "Push Prod Cloud (Prod intent)"
+    jobs:
+      - job: Push_ProdCloud_ProdIntentJob
+        pool:
+          name: ${{ parameters.PoolName }}
+        displayName: "Push Prod Cloud (Prod intent)"
+        steps:
+          - checkout: OmniaPipelines
+
+          - template: ../../templates/generic-rename-source-folders.yml
+
+          # -----------------------------------------------------------------
+          # init dotnet and npm, and omnia cli
+          # Download and unzip drop
+          # -----------------------------------------------------------------
+          - template: ../../templates/generic-init-dotnet-omnia-npm.yml
+            parameters:
+              dotnetVersion: "9.0.101"
+              Tag: $(PackageTag)
+              ExcludeGlobalJson: true
+
+          # outputs: BuildIdUsedInRelease (internal), BuildIdForRelease (internal)
+          - template: ../../templates/generic-get-release-from-version.yml
+            parameters:
+              ReleaseVersion: ${{ parameters.ReleaseVersion }}
+              DefinitionId: "${{ parameters.ReleaseDefinitionId }}"
+
+          - template: ../../templates/generic-download-and-unpack-drop-from-build.yml
+            parameters:
+              DropName: $(dropName)
+              WorkspacePath: "$(Pipeline.Workspace)"
+              StripComponents: 4
+              BuildId: "$(BuildIdUsedInRelease)"
+              BuildDefinitionId: "${{ parameters.BuildDefinitionId }}"
+
+          # -----------------------------------------------------------------
+          # Build Omnia - Docker image and publish to AZ Container Registry
+          # -----------------------------------------------------------------
+          - template: ../../templates/generic-extension-build-to-repository-and-cloud.yml
+            parameters:
+              ReleaseVersion: ${{ parameters.ReleaseVersion }}
+              CloudClientId: "$(ProdCloudClientId)"
+              CloudClientSecret: "$(ProdCloudClientSecret)"
+              ExtensionId: ${{ parameters.ExtensionId }}
+              Intent: "prod"
+              Environment: "prod"
+              ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/extension.json"
+              ApiAppBase: "$(apiappbase)"
+              CloudApiAppId: "$(cloudapiappid)"
+              CloudApiUrl: "$(cloudapiurl)"
+              CliAppId: "$(cliappid)"
+              ExtensionName: ${{ parameters.ExtensionName }}

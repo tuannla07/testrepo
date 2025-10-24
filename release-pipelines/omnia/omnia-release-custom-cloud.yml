@@ -1,0 +1,43 @@
+#------------------------------------------------------------------
+# This pipeline automates the release process for Omnia to custom cloud.
+#------------------------------------------------------------------
+# NOTE:
+# Following libraries need to be linked to this pipeline through UI:
+# - PipelinesNNN Library
+# - OmniaMono Library
+# - Cloud specific Libraries
+#------------------------------------------------------------------
+# Parameters:
+# - PoolName: The agent pool to use for the jobs. Default is "Azure Pipelines".
+# - ReleaseVersion: The version of the release to be used.
+#------------------------------------------------------------------
+
+parameters:
+  - name: "PoolName"
+    type: string
+    default: "Azure Pipelines"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+  - name: ReleaseVersion
+    type: string
+    default: ""
+
+trigger: none
+
+resources:
+  repositories:
+    - repository: OmniaPipelines
+      type: github
+      name: "omniaintranet/OmniaPipelines"
+      ref: $(Build.SourceBranch)
+      endpoint: "omniaintranet"
+
+stages:
+  - template: ../generic/omnia-release-custom-cloud.yml
+    parameters:
+      PoolName: ${{ parameters.PoolName }}
+      ReleaseVersion: ${{ parameters.ReleaseVersion }}
+      ReleaseDefinitionId: $(OmniaDefinitionId)
+      BuildDefinitionId: $(OmniaBuildDefinitionId)

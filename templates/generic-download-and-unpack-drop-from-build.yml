@@ -1,0 +1,89 @@
+############################################################################################################
+# This template downloads and unpacks a specified artifact drop.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - DropName: The name of the drop to download (default: "OmniaMainBuild")
+# - WorkspacePath: The path to the workspace where the drop will be unpacked
+# - StripComponents: The number of leading path components to strip from the tar archive (default: 4)
+############################################################################################################
+
+parameters:
+  - name: DropName
+    type: string
+    default: "OmniaMainBuild"
+
+  - name: WorkspacePath
+    type: string
+    default: ""
+
+  - name: StripComponents
+    type: number
+    default: 4
+
+  - name: BuildId
+    type: string
+
+  - name: BuildDefinitionId
+    type: string
+
+steps:
+  # -----------------------------------------------------------------
+  # download artifact drop
+  # -----------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+        
+      missing_params=()
+      if [ -z "${{ parameters.WorkspacePath }}" ]; then
+        missing_params+=("WorkspacePath")
+      fi
+      if [ -z "${{ parameters.BuildId }}" ]; then
+        missing_params+=("BuildId")
+      fi
+      if([ -z "${{ parameters.BuildDefinitionId }}" ]); then
+        missing_params+=("BuildDefinitionId")
+      fi
+      if [ ${#missing_params[@]} -ne 0 ]; then
+        echo "##vso[task.logissue type=error]Missing or empty parameters: ${missing_params[*]}"
+        exit 1
+      fi
+
+    displayName: "Validate parameters"
+
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: 'specific'
+      project: 'Omnia'
+      pipeline: ${{ parameters.BuildDefinitionId }}
+      buildVersionToDownload: 'specific'
+      buildId: '${{ parameters.BuildId }}'
+      downloadType: 'single'
+      artifactName: 'drop'  # Replace with your artifact name
+      downloadPath: '${{ parameters.WorkspacePath }}/${{ parameters.DropName }}'
+    displayName: "Download drop"
+
+    # -----------------------------------------------------------------
+    # Unzip drop
+    # -----------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+
+      cd ${{ parameters.WorkspacePath }}/${{ parameters.DropName }}/drop
+      echo "Unarchiving drop...: ${{ parameters.WorkspacePath }}/${{ parameters.DropName }}/drop"
+      echo "To: $(Build.ArtifactStagingDirectory)"
+
+      echo "---------------------------------------------------------"
+      if [ -f artifacts.tar.gz ]; then
+          echo "artifacts.tar.gz found, unarchiving..."
+
+          # The tar is constucted with full path (agent/_work/x/a/omnia/drop)
+          # --strip-components=4 will remove the first 4 components of the path
+          # and extract the files to the current directory
+          # so all files will be extracted to $(Pipeline.Workspace)/${{ parameters.DropName }}/drop
+
+          tar -zxvf artifacts.tar.gz --strip-components=${{ parameters.StripComponents }} -C $(Build.ArtifactStagingDirectory)
+      else
+          echo "artifacts.tar.gz not found, skipping unarchive."
+      fi
+      cd -
+    displayName: "Unarchive drop"

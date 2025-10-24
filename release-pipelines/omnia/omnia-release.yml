@@ -1,0 +1,30 @@
+parameters:
+  - name: BuildConfiguration
+    type: string
+    default: "release"
+    values:
+      - "release"
+      - "debug"
+
+  - name: "PoolName"
+    type: string
+    default: "Azure Pipelines"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+# --------------------------------------------------
+# EnsureVersion -> Push_TestCloud_ProdIntent  -> Push_MigrationTestCloud_ProdIntent   -> StartOtherClouds
+#                                             -> Push_TestCloud_DevIntent
+#                                             -> Push_MigrationTestCloud_DevIntent
+#               -> Push_ProdCloud_ProdIntent  -> Push_MigrationProdCloud_ProdIntent   -> StartOtherClouds
+#                                             -> Push_ProdCloud_DevIntent
+#                                             -> Push_MigrationProdCloud_DevIntent
+#               -> Push_Npm_Nuget             
+#               -> SetNextBuildVersion
+# --------------------------------------------------
+stages:
+  - template: ../generic/omnia-release.yml
+    parameters:
+      PoolName: ${{ parameters.PoolName }}
+      BuildConfiguration: ${{ parameters.BuildConfiguration }}

@@ -21,7 +21,7 @@ parameters:
   - name: Tag
     type: string
 
-  - name: Version
+  - name: ReleaseVersion
     type: string
 
   - name: DropName
@@ -75,6 +75,7 @@ steps:
     parameters:
       dotnetVersion: "9.0.101"
       Tag: ${{ parameters.Tag }}
+      ExcludeGlobalJson: true
 
   - template: generic-download-and-unpack-drop.yml
     parameters:
@@ -87,7 +88,7 @@ steps:
   # -----------------------------------------------------------------
   - template: omnia-release-extensions-migration-workers-all-build-to-repository-and-cloud.yml
     parameters:
-      Version: "${{ parameters.Version }}"
+      ReleaseVersion: "${{ parameters.ReleaseVersion }}"
       ClientId: "${{ parameters.CloudClientId }}"
       ClientSecret: "${{ parameters.CloudClientSecret }}"
       Intent: "${{ parameters.Intent }}"

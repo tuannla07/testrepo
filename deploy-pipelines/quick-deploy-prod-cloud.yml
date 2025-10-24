@@ -71,10 +71,6 @@ variables:
     value: ""
   - name: BuildIdUsedInRelease
     value: ""
-  - name: BuildNumberUsedInRelease
-    value: ""
-  - name: BuildTagUsedInRelease
-    value: ""
   - name: BuildConfigUsedInRelease
     value: ""
   - name: BuildPoolUsedInRelease
@@ -91,7 +87,7 @@ stages:
     dependsOn: []
     displayName: "Get latest Omnia version"
     jobs:
-      - job: LatestVersionJob
+      - job: LatestOmniaVersionJob
         pool: ${{parameters.PoolName}}
         displayName: "Get latest Omnia version"
         steps:
@@ -105,15 +101,14 @@ stages:
 
           - script: |
               echo "##vso[task.setvariable variable=VersionTagToRelease;isOutput=true]$(LatestReleaseVersionTag)"
-              echo "##vso[task.setvariable variable=BuildTagUsedInRelease;isOutput=true]$(BuildTagUsedInRelease)"
-            name: EnsureVariables
+            name: EnsureOmniaVariables
             displayName: "Ensure variables"
 
   - stage: GetLatestAnalyticsVersion
     dependsOn: []
     displayName: "Get latest Analytics version"
     jobs:
-      - job: LatestVersionJob
+      - job: LatestAnalyticsVersionJob
         pool: ${{parameters.PoolName}}
         displayName: "Get latest Analytics version"
         steps:
@@ -127,8 +122,7 @@ stages:
 
           - script: |
               echo "##vso[task.setvariable variable=VersionTagToRelease;isOutput=true]$(LatestReleaseVersionTag)"
-              echo "##vso[task.setvariable variable=BuildTagUsedInRelease;isOutput=true]$(BuildTagUsedInRelease)"
-            name: EnsureVariables
+            name: EnsureAnalyticsVariables
             displayName: "Ensure variables"
 
   - stage: GetLatestFeedVersion
@@ -149,7 +143,6 @@ stages:
 
           - script: |
               echo "##vso[task.setvariable variable=VersionTagToRelease;isOutput=true]$(LatestReleaseVersionTag)"
-              echo "##vso[task.setvariable variable=BuildTagUsedInRelease;isOutput=true]$(BuildTagUsedInRelease)"
             name: EnsureFeedVariables
             displayName: "Ensure variables"
 
@@ -157,8 +150,7 @@ stages:
     dependsOn: [GetLatestOmniaVersion]
     condition: succeeded()
     variables:
-      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.VersionTagToRelease'] ]
-      BuildTag: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.BuildTagUsedInRelease'] ]
+      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestOmniaVersionJob.outputs['EnsureOmniaVariables.VersionTagToRelease'] ]
     displayName: "Deploy Omnia"
     jobs:
       - job: DeployJob
@@ -169,7 +161,7 @@ stages:
 
           - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
             parameters:
-              BuildTag: $(BuildTag)
+              BuildTag: $(PackageTag)
               Version: $(Version)
               TenantId: $(TenantId)
               CloudClientId: "$(ProdCloudClientId)"
@@ -182,8 +174,7 @@ stages:
     dependsOn: [GetLatestOmniaVersion, DeployToOmnia]
     condition: succeeded()
     variables:
-      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.VersionTagToRelease'] ]
-      BuildTag: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.BuildTagUsedInRelease'] ]
+      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestOmniaVersionJob.outputs['EnsureOmniaVariables.VersionTagToRelease'] ]
     displayName: "Deploy WP"
     jobs:
       - job: DeployJob
@@ -193,7 +184,7 @@ stages:
           - checkout: none
           - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
             parameters:
-              BuildTag: $(BuildTag)
+              BuildTag: $(PackageTag)
               Version: $(Version)
               TenantId: $(TenantId)
               CloudClientId: "$(ProdCloudClientId)"
@@ -206,8 +197,7 @@ stages:
     dependsOn: [GetLatestOmniaVersion, DeployToWP]
     condition: succeeded()
     variables:
-      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.VersionTagToRelease'] ]
-      BuildTag: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.BuildTagUsedInRelease'] ]
+      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestOmniaVersionJob.outputs['EnsureOmniaVariables.VersionTagToRelease'] ]
     displayName: "Deploy WCM"
     jobs:
       - job: DeployJob
@@ -218,7 +208,7 @@ stages:
 
           - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
             parameters:
-              BuildTag: $(BuildTag)
+              BuildTag: $(PackageTag)
               Version: $(Version)
               TenantId: $(TenantId)
               CloudClientId: "$(ProdCloudClientId)"
@@ -231,8 +221,7 @@ stages:
     dependsOn: [GetLatestOmniaVersion, DeployToWCM]
     condition: succeeded()
     variables:
-      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.VersionTagToRelease'] ]
-      BuildTag: $[ stageDependencies.GetLatestOmniaVersion.LatestVersionJob.outputs['EnsureVariables.BuildTagUsedInRelease'] ]
+      Version: $[ stageDependencies.GetLatestOmniaVersion.LatestOmniaVersionJob.outputs['EnsureOmniaVariables.VersionTagToRelease'] ]
     displayName: "Deploy MS"
     jobs:
       - job: DeployJob
@@ -243,7 +232,7 @@ stages:
 
           - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
             parameters:
-              BuildTag: $(BuildTag)
+              BuildTag: $(PackageTag)
               Version: $(Version)
               TenantId: $(TenantId)
               CloudClientId: "$(ProdCloudClientId)"
@@ -256,8 +245,7 @@ stages:
     dependsOn: [GetLatestAnalyticsVersion, DeployToMS]
     condition: succeeded()
     variables:
-      Version: $[ stageDependencies.GetLatestAnalyticsVersion.LatestVersionJob.outputs['EnsureVariables.VersionTagToRelease'] ]
-      BuildTag: $[ stageDependencies.GetLatestAnalyticsVersion.LatestVersionJob.outputs['EnsureVariables.BuildTagUsedInRelease'] ]
+      Version: $[ stageDependencies.GetLatestAnalyticsVersion.LatestAnalyticsVersionJob.outputs['EnsureAnalyticsVariables.VersionTagToRelease'] ]
     displayName: "Deploy Analytics"
     jobs:
       - job: DeployJob
@@ -268,7 +256,7 @@ stages:
 
           - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
             parameters:
-              BuildTag: $(BuildTag)
+              BuildTag: $(PackageTag)
               Version: $(Version)
               TenantId: $(TenantId)
               CloudClientId: "$(ProdCloudClientId)"
@@ -282,7 +270,6 @@ stages:
     condition: succeeded()
     variables:
       Version: $[ stageDependencies.GetLatestFeedVersion.LatestFeedVersionJob.outputs['EnsureFeedVariables.VersionTagToRelease'] ]
-      BuildTag: $[ stageDependencies.GetLatestFeedVersion.LatestFeedVersionJob.outputs['EnsureFeedVariables.BuildTagUsedInRelease'] ]
     displayName: "Deploy Feed"
     jobs:
       - job: DeployJob
@@ -293,7 +280,7 @@ stages:
 
           - template: ../templates/generic-init-login-deploy-extension-to-tenant.yml
             parameters:
-              BuildTag: $(BuildTag)
+              BuildTag: $(PackageTag)
               Version: $(Version)
               TenantId: $(TenantId)
               CloudClientId: "$(ProdCloudClientId)"

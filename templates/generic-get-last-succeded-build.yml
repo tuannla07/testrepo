@@ -1,0 +1,57 @@
+#--------------------------------
+# Fetches the last completed and succeeded build for a given build definition ID.
+#--------------------------------
+# Parameters:
+# - BuildDefinitionId: The ID of the build definition to query. 
+# outputs:
+# - ReferencedBuildId: The ID of the last completed and succeeded build.
+# - ReferencedBuildNumber: The build number of the last completed and succeeded build.
+#--------------------------------
+
+parameters:
+  - name: "BuildDefinitionId"
+    type: string
+    default: ""
+
+steps:
+  - script: |
+      set -euo pipefail
+
+      if [[ -z "${{ parameters.BuildDefinitionId }}" ]]; then
+        echo "##vso[task.logissue type=error]BuildDefinitionId parameter is missing or empty."
+        exit 1
+      fi
+
+      echo "Fetching last completed and succeeded build for definition ID: ${{ parameters.BuildDefinitionId }}"
+      request_url="https://dev.azure.com/omnia-source/omnia/_apis/build/builds?definitions=${{ parameters.BuildDefinitionId }}&statusFilter=completed&resultFilter=succeeded&$$top=1&queryOrder=finishTimeDescending&api-version=7.1-preview.7"
+
+      lastBuild=$(curl -s -X GET \
+        -u :$(System.AccessToken) \
+        -H "Accept: application/json" \
+        "$request_url")
+
+      # Check if the response is empty or null
+      if [ -z "$lastBuild" ] || [ "$lastBuild" = "null" ]; then
+        echo "##vso[task.logissue type=error]No response received from Azure DevOps API."
+        exit 1
+      fi
+
+      # Extract build count
+      count=$(echo "$lastBuild" | jq -r '.count // 0')
+
+      if [ "$count" -eq 0 ]; then
+        echo "##vso[task.logissue type=error]No completed and succeeded builds found for definition ${{ parameters.BuildDefinitionId }}."
+        exit 1
+      fi
+
+      # Extract values
+      buildId=$(echo "$lastBuild" | jq -r '.value[0].id')
+      buildNumber=$(echo "$lastBuild" | jq -r '.value[0].buildNumber')
+
+      echo "Build ID: $buildId"
+      echo "Build Number: $buildNumber"
+      echo "https://dev.azure.com/omnia-source/Omnia/_build/results?buildId=$buildId&view=results"
+
+      echo "##vso[task.setvariable variable=ReferencedBuildId]$buildId"
+      echo "##vso[task.setvariable variable=ReferencedBuildNumber]$buildNumber"
+    displayName: "Fetch build info"

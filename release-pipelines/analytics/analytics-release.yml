@@ -1,0 +1,36 @@
+parameters:
+  - name: "PoolName"
+    type: string
+    default: "Azure Pipelines"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+trigger: none
+
+resources:
+  repositories:
+    - repository: OmniaPipelines
+      type: github
+      name: "omniaintranet/OmniaPipelines"
+      ref: refs/heads/main
+      endpoint: "omniaintranet"
+
+variables:
+  - group: TestCloud
+  - group: ProdCloud
+  - group: OmniaMono
+
+stages:
+  - template: ../generic/omnia-extensions-release.yml
+    parameters:
+      PoolName: ${{ parameters.PoolName }}
+      MainVersion: $(OmniaMainVersion)
+      Tag: $(PackageTag)
+      ExtensionName: "OmniaAnalytics"
+      ExtensionId: "c187b4f7-9b18-4eea-a549-ae3afa3d6888"
+      AutostartDefinitionId: $(AnalyticsAutostartDefinitionId)
+      BuildDefinitionId: $(AnalyticsBuildDefinitionId)
+      VariableName: "AnalyticsNextBuildVersion"
+      BuildVersionNumber: $(AnalyticsNextBuildVersion)
+      LibraryGroupId: $(LibraryGroupId)

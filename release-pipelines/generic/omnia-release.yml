@@ -1,13 +1,4 @@
 parameters:
-  - name: MainVersion
-    type: string
-    default: ""
-
-  - name: Tag
-    type: string
-    default: "preview" # should be latest in prod branch
-    displayName: "Tag"
-
   - name: BuildConfiguration
     type: string
     default: "release"
@@ -22,13 +13,16 @@ parameters:
       - "Azure Pipelines"
       - "Omnia Agents"
 
-  # EnsureVersion -> Push_TestCloud_ProdIntent  -> Push_MigrationTestCloud_ProdIntent   -> StartOtherClouds
-  #                                             -> Push_TestCloud_DevIntent
-  #                                             -> Push_MigrationTestCloud_DevIntent
-  #               -> Push_ProdCloud_ProdIntent  -> Push_MigrationProdCloud_ProdIntent   -> StartOtherClouds
-  #                                             -> Push_ProdCloud_DevIntent
-  #                                             -> Push_MigrationProdCloud_DevIntent
-  #               -> Push_Npm_Nuget             -> (StartOtherClouds) -> SetNextBuildVersion
+# --------------------------------------------------
+# EnsureVersion -> Push_TestCloud_ProdIntent  -> Push_MigrationTestCloud_ProdIntent   -> StartOtherClouds
+#                                             -> Push_TestCloud_DevIntent
+#                                             -> Push_MigrationTestCloud_DevIntent
+#               -> Push_ProdCloud_ProdIntent  -> Push_MigrationProdCloud_ProdIntent   -> StartOtherClouds
+#                                             -> Push_ProdCloud_DevIntent
+#                                             -> Push_MigrationProdCloud_DevIntent
+#               -> Push_Npm_Nuget             
+#               -> SetNextBuildVersion
+# --------------------------------------------------
 stages:
   - stage: EnsureVersion
     dependsOn: []
@@ -40,27 +34,56 @@ stages:
         steps:
           - checkout: OmniaPipelines
 
-          - template: ../templates/generic-get-build-number-to-use.yml
+          - script: |
+              set -euo pipefail 
+
+              missing_params=()
+              if [ -z "$(OmniaMainVersion)" ]; then
+                missing_params+=("OmniaMainVersion")
+              fi
+              if [ -z "$(OmniaDefinitionId)" ]; then
+                missing_params+=("OmniaDefinitionId")
+              fi
+              if [ -z "$(PackageTag)" ]; then
+                missing_params+=("PackageTag")
+              fi
+              if([ -z "$(LibraryGroupId)" ]); then
+                missing_params+=("LibraryGroupId")
+              fi
+
+              if [ ${#missing_params[@]} -ne 0 ]; then
+                echo "##vso[task.logissue type=error]Missing or empty parameters: ${missing_params[*]}"
+                exit 1
+              fi
+
+              # if [ "$(resources.pipeline.OmniaMainBuild.result)" != "succeeded" ]; then
+              #   echo "❌ The referenced build did not succeed. Failing the pipeline."
+              #   exit 1
+              # fi
+            displayName: "Validate parameters"
+
+          # outputs: BuildVersionNumberToUse (internal)
+          - template: ../../templates/generic-get-build-version-number-to-use.yml
             parameters:
-              BuildNumber: ""
               NextBuildVersion: $(OmniaNextBuildVersion)
 
-          - template: ../templates/generic-ensure-version-as-variable.yml
+          # outputs: ReleaseVersion (internal)
+          - template: ../../templates/generic-ensure-version-as-variable.yml
             parameters:
-              BuildNumber: $(BuildNumberToUse)
-              Tag: ${{ parameters.Tag }}
-              MainVersion: ${{ parameters.MainVersion }}
+              BuildVersionNumber: $(BuildVersionNumberToUse)
+              Tag: $(PackageTag)
+              MainVersion: $(OmniaMainVersion)
 
-          - template: ../templates/generic-set-buildnumber-on-build.yml
+          - template: ../../templates/generic-set-build-version-number-on-build.yml
             parameters:
-              Version: "$(Version)"
-              BuildVersion: $(BuildNumberToUse)
+              ReleaseVersion: "$(ReleaseVersion)"
 
+          # outputs: ReleaseVersion, UsedBuildVersion 
           - script: |
-              echo "Setting version: $(Version)"
-              echo "##vso[build.addbuildtag]$(Version)"
-              echo "##vso[task.setvariable variable=UsedBuildNumber;isOutput=true]$(BuildNumberToUse)"
-              echo "##vso[task.setvariable variable=Version;isOutput=true]$(Version)"
+              echo "Setting version: $(ReleaseVersion)"
+              echo "##vso[build.addbuildtag]$(ReleaseVersion)"
+              echo "##vso[task.setvariable variable=UsedBuildVersion;isOutput=true]$(BuildVersionNumberToUse)"
+              echo "##vso[task.setvariable variable=ReleaseVersion;isOutput=true]$(ReleaseVersion)"
             name: EnsureVersionTask
             displayName: "Setting version variable and tag"
 
@@ -75,20 +98,17 @@ stages:
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+          ReleaseVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.ReleaseVersion'] ]
         displayName: "Push Test Cloud (Prod intent)"
         steps:
           - checkout: OmniaPipelines
-          - checkout: OmniaMono
 
-          - template: ../templates/generic-rename-source-folders.yml
-            parameters:
-              RepositoryName: "OmniaMono"
+          - template: ../../templates/generic-rename-source-folders.yml
 
-          - template: ../templates/omnia-build-push-extension-to-cloud.yml
+          - template: ../../templates/omnia-build-push-extension-to-cloud.yml
             parameters:
-              Tag: ${{ parameters.Tag }}
-              Version: "$(Version)"
+              Tag: $(PackageTag)
+              ReleaseVersion: "$(ReleaseVersion)"
               DropName: $(dropName)
               CloudClientId: "$(TestCloudClientId)"
               CloudClientSecret: "$(TestCloudClientSecret)"
@@ -106,20 +126,17 @@ stages:
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+          ReleaseVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.ReleaseVersion'] ]
         displayName: "Push Migration Workers Test Cloud (Prod intent)"
         steps:
           - checkout: OmniaPipelines
-          - checkout: OmniaMono
 
-          - template: ../templates/generic-rename-source-folders.yml
-            parameters:
-              RepositoryName: "OmniaMono"
+          - template: ../../templates/generic-rename-source-folders.yml
 
-          - template: ../templates/omnia-build-push-migration-extension-to-cloud.yml
+          - template: ../../templates/omnia-build-push-migration-extension-to-cloud.yml
             parameters:
-              Tag: ${{ parameters.Tag }}
-              Version: "$(Version)"
+              Tag: $(PackageTag)
+              ReleaseVersion: "$(ReleaseVersion)"
               DropName: $(dropName)
               CloudClientId: "$(TestCloudClientId)"
               CloudClientSecret: "$(TestCloudClientSecret)"
@@ -137,20 +154,17 @@ stages:
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+          ReleaseVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.ReleaseVersion'] ]
         displayName: "Push Test Cloud (Dev intent)"
         steps:
           - checkout: OmniaPipelines
-          - checkout: OmniaMono
 
-          - template: ../templates/generic-rename-source-folders.yml
-            parameters:
-              RepositoryName: "OmniaMono"
+          - template: ../../templates/generic-rename-source-folders.yml
 
-          - template: ../templates/omnia-build-push-extension-to-cloud.yml
+          - template: ../../templates/omnia-build-push-extension-to-cloud.yml
             parameters:
-              Tag: ${{ parameters.Tag }}
-              Version: "$(Version)"
+              Tag: $(PackageTag)
+              ReleaseVersion: "$(ReleaseVersion)"
               DropName: $(dropName)
               CloudClientId: "$(TestCloudClientId)"
               CloudClientSecret: "$(TestCloudClientSecret)"
@@ -168,20 +182,17 @@ stages:
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+          ReleaseVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.ReleaseVersion'] ]
         displayName: "Push Migration Workers Test Cloud (Dev intent)"
         steps:
           - checkout: OmniaPipelines
-          - checkout: OmniaMono
 
-          - template: ../templates/generic-rename-source-folders.yml
-            parameters:
-              RepositoryName: "OmniaMono"
+          - template: ../../templates/generic-rename-source-folders.yml
 
-          - template: ../templates/omnia-build-push-migration-extension-to-cloud.yml
+          - template: ../../templates/omnia-build-push-migration-extension-to-cloud.yml
             parameters:
-              Tag: ${{ parameters.Tag }}
-              Version: "$(Version)"
+              Tag: $(PackageTag)
+              ReleaseVersion: "$(ReleaseVersion)"
               DropName: $(dropName)
               CloudClientId: "$(TestCloudClientId)"
               CloudClientSecret: "$(TestCloudClientSecret)"
@@ -199,20 +210,17 @@ stages:
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+          ReleaseVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.ReleaseVersion'] ]
         displayName: "Push Prod Cloud (Prod intent)"
         steps:
           - checkout: OmniaPipelines
-          - checkout: OmniaMono
 
-          - template: ../templates/generic-rename-source-folders.yml
-            parameters:
-              RepositoryName: "OmniaMono"
+          - template: ../../templates/generic-rename-source-folders.yml
 
-          - template: ../templates/omnia-build-push-extension-to-cloud.yml
+          - template: ../../templates/omnia-build-push-extension-to-cloud.yml
             parameters:
-              Tag: ${{ parameters.Tag }}
-              Version: "$(Version)"
+              Tag: $(PackageTag)
+              ReleaseVersion: "$(ReleaseVersion)"
               DropName: $(dropName)
               CloudClientId: "$(ProdCloudClientId)"
               CloudClientSecret: "$(ProdCloudClientSecret)"
@@ -230,20 +238,17 @@ stages:
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+          ReleaseVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.ReleaseVersion'] ]
         displayName: "Push Migration Workers Prod Cloud (Prod intent)"
         steps:
           - checkout: OmniaPipelines
-          - checkout: OmniaMono
 
-          - template: ../templates/generic-rename-source-folders.yml
-            parameters:
-              RepositoryName: "OmniaMono"
+          - template: ../../templates/generic-rename-source-folders.yml
 
-          - template: ../templates/omnia-build-push-migration-extension-to-cloud.yml
+          - template: ../../templates/omnia-build-push-migration-extension-to-cloud.yml
             parameters:
-              Tag: ${{ parameters.Tag }}
-              Version: "$(Version)"
+              Tag: $(PackageTag)
+              ReleaseVersion: "$(ReleaseVersion)"
               DropName: $(dropName)
               CloudClientId: "$(ProdCloudClientId)"
               CloudClientSecret: "$(ProdCloudClientSecret)"
@@ -261,20 +266,17 @@ stages:
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+          ReleaseVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.ReleaseVersion'] ]
         displayName: "Push Prod Cloud (Dev intent)"
         steps:
           - checkout: OmniaPipelines
-          - checkout: OmniaMono
 
-          - template: ../templates/generic-rename-source-folders.yml
-            parameters:
-              RepositoryName: "OmniaMono"
+          - template: ../../templates/generic-rename-source-folders.yml
 
-          - template: ../templates/omnia-build-push-extension-to-cloud.yml
+          - template: ../../templates/omnia-build-push-extension-to-cloud.yml
             parameters:
-              Tag: ${{ parameters.Tag }}
-              Version: "$(Version)"
+              Tag: $(PackageTag)
+              ReleaseVersion: "$(ReleaseVersion)"
               DropName: $(dropName)
               CloudClientId: "$(ProdCloudClientId)"
               CloudClientSecret: "$(ProdCloudClientSecret)"
@@ -292,20 +294,17 @@ stages:
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+          ReleaseVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.ReleaseVersion'] ]
         displayName: "Push Migration Workers Prod Cloud (Dev intent)"
         steps:
           - checkout: OmniaPipelines
-          - checkout: OmniaMono
 
-          - template: ../templates/generic-rename-source-folders.yml
-            parameters:
-              RepositoryName: "OmniaMono"
+          - template: ../../templates/generic-rename-source-folders.yml
 
-          - template: ../templates/omnia-build-push-migration-extension-to-cloud.yml
+          - template: ../../templates/omnia-build-push-migration-extension-to-cloud.yml
             parameters:
-              Tag: ${{ parameters.Tag }}
-              Version: "$(Version)"
+              Tag: $(PackageTag)
+              ReleaseVersion: "$(ReleaseVersion)"
               DropName: $(dropName)
               CloudClientId: "$(ProdCloudClientId)"
               CloudClientSecret: "$(ProdCloudClientSecret)"
@@ -323,13 +322,13 @@ stages:
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          Version: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.Version'] ]
+          ReleaseVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.ReleaseVersion'] ]
         displayName: "Push NPM and Nuget"
         steps:
           - checkout: OmniaPipelines
           - checkout: OmniaMono
 
-          - template: ../templates/generic-rename-source-folders.yml
+          - template: ../../templates/generic-rename-source-folders.yml
             parameters:
               RepositoryName: "OmniaMono"
 
@@ -337,12 +336,12 @@ stages:
           # init dotnet and npm, and omnia cli
           # Download and unzip drop
           # -----------------------------------------------------------------
-          - template: ../templates/generic-init-dotnet-omnia-npm.yml
+          - template: ../../templates/generic-init-dotnet-omnia-npm.yml
             parameters:
               dotnetVersion: "9.0.101"
-              Tag: ${{ parameters.Tag }}
+              Tag: $(PackageTag)
 
-          - template: ../templates/generic-download-and-unpack-drop.yml
+          - template: ../../templates/generic-download-and-unpack-drop.yml
             parameters:
               DropName: $(dropName)
               WorkspacePath: "$(Pipeline.Workspace)"
@@ -351,10 +350,10 @@ stages:
           # -----------------------------------------------------------------
           # Build and publishNuget packages
           # -----------------------------------------------------------------
-          - template: ../templates/omnia-release-set-version-publish-all-nuget.yml
+          - template: ../../templates/omnia-release-set-version-publish-all-nuget.yml
             parameters:
-              Version: "$(Version)"
-              Tag: ${{ parameters.Tag }}
+              ReleaseVersion: "$(ReleaseVersion)"
+              Tag: $(PackageTag)
               LocalPath: "$(Build.SourcesDirectory)/omniamono"
               NugetFeed: "$(nugetFeed)"
               BuildConfiguration: "${{ parameters.BuildConfiguration }}"
@@ -362,10 +361,10 @@ stages:
           # -----------------------------------------------------------------
           # Push Nuget
           # -----------------------------------------------------------------
-          - template: ../templates/omnia-release-set-version-publish-all-npm.yml
+          - template: ../../templates/omnia-release-set-version-publish-all-npm.yml
             parameters:
-              Version: "$(Version)"
-              Tag: ${{ parameters.Tag }}
+              ReleaseVersion: "$(ReleaseVersion)"
+              Tag: $(PackageTag)
               LocalPath: "$(Build.SourcesDirectory)/omniamono"
               ResourcePath: "$(Build.SourcesDirectory)/omniapipelines"
               NpmFeed: "$(npmFeed)"
@@ -386,31 +385,33 @@ stages:
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          UsedBuildNumber: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.UsedBuildNumber'] ]
+          ReleaseVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.ReleaseVersion'] ]
         steps:
-          - template: ../templates/generic-trigger-release-definition.yml
+          - checkout: OmniaPipelines
+
+          - template: ../../templates/generic-trigger-release-definition.yml
             parameters:
               DefinitionId: "$(OmniaAutostartDefinitionId)"
-              BuildNumber: "$(UsedBuildNumber)"
-              MainVersion: "${{ parameters.MainVersion }}"
-              Tag: "${{ parameters.Tag }}"
+              ReleaseVersion: "$(ReleaseVersion)"
               PoolName: "${{ parameters.PoolName }}"
 
   # -----------------------------------------------------------------
   # STAGE: Set next build version
   # -----------------------------------------------------------------
   - stage: SetNextBuildVersion
-    dependsOn: [EnsureVersion, Push_Npm_Nuget, StartOtherClouds]
+    dependsOn: [EnsureVersion]
     displayName: "Set Next Build Version"
     jobs:
       - job: SetNextBuildVersionJob
         pool:
           name: ${{ parameters.PoolName }}
         variables:
-          UsedBuildNumber: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.UsedBuildNumber'] ]
+          UsedBuildVersion: $[ stageDependencies.EnsureVersion.EnsureVersionJob.outputs['EnsureVersionTask.UsedBuildVersion'] ]
         steps:
-          - template: ../templates/generic-update-library-counter.yml
+          - checkout: OmniaPipelines
+
+          - template: ../../templates/generic-update-library-counter.yml
             parameters:
               LibraryGroupId: "$(LibraryGroupId)"
               VariableName: "OmniaNextBuildVersion"
-              CurrentCounterValue: $(UsedBuildNumber)
+              CurrentBuildVersionValue: $(UsedBuildVersion)

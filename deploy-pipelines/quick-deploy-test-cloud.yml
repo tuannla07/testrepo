@@ -101,7 +101,6 @@ stages:
 
           - script: |
               echo "##vso[task.setvariable variable=VersionTagToRelease;isOutput=true]$(LatestReleaseVersionTag)"
-              echo "##vso[task.setvariable variable=PackageTag;isOutput=true]$(PackageTag)"
             name: EnsureOmniaVariables
             displayName: "Ensure variables"
 
@@ -144,7 +143,6 @@ stages:
 
           - script: |
               echo "##vso[task.setvariable variable=VersionTagToRelease;isOutput=true]$(LatestReleaseVersionTag)"
-              echo "##vso[task.setvariable variable=PackageTag;isOutput=true]$(PackageTag)"
             name: EnsureFeedVariables
             displayName: "Ensure variables"
 

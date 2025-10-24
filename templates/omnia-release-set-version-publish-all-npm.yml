@@ -5,7 +5,7 @@
 # If the tag is "latest", the packages are also published to NPMJS.org.
 #-----------------------------------------------------------------------------------------------------------
 # Parameters:
-# - Version: The version to set for the NPM packages
+# - ReleaseVersion: The version to set for the NPM packages
 # - Tag: The tag to use when publishing the NPM packages (default: "preview")
 # - LocalPath: The local path where the build artifacts are located
 # - ResourcePath: The resource path containing version replacement files
@@ -13,7 +13,7 @@
 #############################################################################################################
 
 parameters:
-  - name: Version
+  - name: ReleaseVersion
     type: string
     default: ""
 
@@ -37,7 +37,7 @@ steps:
   - script: |
       set -euo pipefail
 
-      if [ -z "${{ parameters.Version }}" ]; then
+      if [ -z "${{ parameters.ReleaseVersion }}" ]; then
         echo "Version is not set. Please provide a valid Version."
         exit 1
       fi
@@ -64,7 +64,7 @@ steps:
 
 
       cd ${{ parameters.ResourcePath }}/resources
-      jq '.toReplace |= with_entries(if .value == "BuildNumber" then .value = "${{parameters.Version}}" else . end)' omnia-release-versions-toReplace.json > temp.json && mv -f temp.json omnia-release-versions-toReplace.json
+      jq '.toReplace |= with_entries(if .value == "BuildNumber" then .value = "${{parameters.ReleaseVersion}}" else . end)' omnia-release-versions-toReplace.json > temp.json && mv -f temp.json omnia-release-versions-toReplace.json
       cd -
     displayName: "NPM: Prepare version replacements"
 
@@ -102,7 +102,7 @@ steps:
           echo "Replacing version in .devDependencies"
           jq --slurpfile toReplace ${{ parameters.ResourcePath }}/resources/omnia-release-versions-toReplace.json '.devDependencies |= with_entries(if .key | in($toReplace[0].toReplace) then .value = $toReplace[0].toReplace[.key] else . end)' package.json > temp.json && mv -f temp.json package.json
           echo "Replacing version in .version"
-          jq '.version = "${{parameters.Version}}"' package.json > temp.json && mv -f temp.json package.json
+          jq '.version = "${{parameters.ReleaseVersion}}"' package.json > temp.json && mv -f temp.json package.json
 
           cd -
       done

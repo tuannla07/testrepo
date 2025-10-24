@@ -1,0 +1,82 @@
+############################################################################################################
+# This template triggers a release pipeline in Azure DevOps.
+# The pipeline to start should be either a pipeline that starts others or a pipeline that is used for releases.
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - DefinitionId: The ID of the pipeline definition to trigger.
+# - ReleaseVersion: The release version number to pass as a parameter to the triggered pipeline.
+# - PoolName: The pool name to pass as a parameter to the triggered pipeline (default: "Azure Pipelines").
+# - PipelineName: The name of the pipeline being triggered (for display purposes).
+############################################################################################################
+
+parameters:
+  - name: DefinitionId
+    type: string
+    default: ""
+
+  - name: ReleaseVersion
+    type: string
+    default: ""
+
+  - name: "PoolName"
+    type: string
+    default: "Azure Pipelines"
+    values:
+      - "Azure Pipelines"
+      - "Omnia Agents"
+
+  - name: "PipelineName"
+    type: string
+    default: "N/A"
+
+steps:
+  - script: |
+      set -euo pipefail
+
+      echo "Validating input parameters..."
+
+      missing_params=()
+
+      if [ -z "${{ parameters.ReleaseVersion }}" ]; then
+        missing_params+=("ReleaseVersion")
+      fi
+
+      if [ ${#missing_params[@]} -ne 0 ]; then
+        echo "##vso[task.logissue type=error]Missing or empty parameters: ${missing_params[*]}"
+        exit 1
+      fi
+
+      if [ -z "${{ parameters.DefinitionId }}" ]; then
+        echo "No DefinitionId found - no automatic release will be triggered."
+        exit 0
+      fi
+
+      echo "Triggering release pipeline..."
+      echo "DefinitionId: ${{ parameters.DefinitionId }}"
+      echo "ReleaseVersion: ${{ parameters.ReleaseVersion }}"
+
+      http_code=$(curl -w "%{http_code}" -s -o response.json -u user:$(System.AccessToken) \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d '{
+              "definition": {
+                "id": ${{ parameters.DefinitionId }}
+              },
+              "parameters": "{ 
+                \"ReleaseVersion\": \"${{ parameters.ReleaseVersion }}\", 
+                \"PoolName\": \"${{ parameters.PoolName }}\"
+              }"
+            }' \
+        https://dev.azure.com/omnia-source/omnia/_apis/build/builds?api-version=7.1-preview.7)
+      
+      if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
+        echo "Failed to trigger pipeline. Response:"
+        cat response.json
+        exit 1
+      else
+        echo "Pipeline triggered successfully."
+      fi
+
+    displayName: "Start Release Pipeline: ${{ parameters.PipelineName }}"
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)

@@ -5,7 +5,7 @@
 # and pushes the extension to Omnia Cloud.
 #-----------------------------------------------------------------------------------------------------------
 # Parameters:
-# - Version: The version of the extension to build and push (e.g., 1.0.0)
+# - ReleaseVersion: The version of the extension to build and push (e.g., 1.0.0)
 # - CloudClientId: The client ID for Omnia Cloud authentication
 # - CloudClientSecret: The client secret for Omnia Cloud authentication
 # - ExtensionId: The ID of the extension to push
@@ -20,7 +20,7 @@
 ############################################################################################################
 
 parameters:
-  - name: Version
+  - name: ReleaseVersion
     type: string
     default: ""
 
@@ -80,8 +80,8 @@ steps:
   # -----------------------------------------------------------------------------------------------------------
   - script: |
       set -euo pipefail
-      if [ -z "${{parameters.Version}}" ]; then
-        echo "Version is not set. Please provide a valid Version."
+      if [ -z "${{parameters.ReleaseVersion}}" ]; then
+        echo "ReleaseVersion is not set. Please provide a valid ReleaseVersion."
         exit 1
       fi
       if [ -z "${{parameters.ExtensionJsonPath }}" ]; then
@@ -89,7 +89,7 @@ steps:
         exit 1
       fi
 
-      $HOME/.dotnet/tools/omnia dev publish -p "${{parameters.ExtensionJsonPath}}" -v "${{parameters.Version}}" --dotnetpublish false
+      $HOME/.dotnet/tools/omnia dev publish -p "${{parameters.ExtensionJsonPath}}" -v "${{parameters.ReleaseVersion}}" --dotnetpublish false
     displayName: "${{parameters.ExtensionName}} - Publish Docker image"
 
   # -----------------------------------------------------------------------------------------------------------
@@ -114,8 +114,8 @@ steps:
         echo "ExtensionId is not set. Please provide a valid ExtensionId."
         exit 1
       fi
-      if [ -z "${{parameters.Version}}" ]; then
-        echo "Version is not set. Please provide a valid Version."
+      if [ -z "${{parameters.ReleaseVersion}}" ]; then
+        echo "ReleaseVersion is not set. Please provide a valid ReleaseVersion."
         exit 1
       fi
       if [ -z "${{parameters.Intent}}" ]; then
@@ -123,5 +123,5 @@ steps:
         exit 1
       fi
 
-      $HOME/.dotnet/tools/omnia extensions push "${{parameters.ExtensionId}}:${{parameters.Version}}" -i ${{parameters.Intent}}
+      $HOME/.dotnet/tools/omnia extensions push "${{parameters.ExtensionId}}:${{parameters.ReleaseVersion}}" -i ${{parameters.Intent}}
     displayName: "${{parameters.ExtensionName}} - Push Extension"

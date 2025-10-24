@@ -1,0 +1,75 @@
+############################################################################################################
+# Template: generic-get-release-from-version.yml
+#-----------------------------------------------------------------------------------------------------------
+# This template retrieves the latest successful release version from a specified pipeline definition
+# based on a given release version tag. It sets variables that can be used in subsequent steps of the pipeline.
+# If no successful release is found with the specified tag, the script exits with an error.
+# It will set the build ID used in the release (BuildIdUsedInRelease) as a variable and the release build ID (BuildIdForRelease).
+#-----------------------------------------------------------------------------------------------------------
+# Parameters:
+# - DefinitionId: The ID of the release pipeline definition to query for releases.
+# - ReleaseVersion: The specific release version tag to look for.
+# Outputs:
+# - BuildIdUsedInRelease: The build ID associated with the found release.
+# - BuildIdForRelease: The release build ID.
+############################################################################################################
+
+parameters:
+  - name: DefinitionId
+    type: string
+    default: ""
+
+  - name: ReleaseVersion
+    type: string
+    default: ""
+
+steps:
+  - script: |
+      set -euo pipefail
+
+      if [ -z "${{ parameters.DefinitionId }}" ]; then
+        echo "DefinitionId is not set. Please provide a valid DefinitionId."
+        exit 1
+      fi
+
+      if [ -z "${{ parameters.ReleaseVersion }}" ]; then
+        echo "ReleaseVersion is not set. Please provide a valid ReleaseVersion."
+        exit 1
+      fi
+
+      TOKEN=$(System.AccessToken)
+
+      echo "---------------------------------------------"
+      echo "1. Get release..."
+      url="https://dev.azure.com/omnia-source/omnia/_apis/build/builds?definitions=${{ parameters.DefinitionId }}&statusFilter=completed&resultFilter=succeeded&queryOrder=finishTimeDescending&$$top=50&api-version=7.1-preview.7"
+      echo "  $url"
+
+
+      builds=$(curl -s -u :$SYSTEM_ACCESSTOKEN "$url")
+
+      run_info=$(echo "$builds" | jq -r '
+        .value[]
+        | select(.tags[]? == "'"${{ parameters.ReleaseVersion }}"'")
+        | [.id, ((.tags[] | select(startswith("bid_"))) | sub("^bid_"; ""))]
+        | @tsv
+      ' | head -n 1)
+
+      if [ -n "$run_info" ]; then
+        run_id=$(echo "$run_info" | awk '{print $1}')
+        build_id=$(echo "$run_info" | awk '{print $2}')
+
+        echo "Found Release Build ID: $run_id"
+        echo "Found Build ID: $build_id"
+      else
+        echo "##vso[task.logissue type=error]No matching build found for ReleaseVersion '${{ parameters.ReleaseVersion }}'"
+        exit 1
+      fi
+
+      echo "---------------------------------------------"
+      echo "3. Set variables for the release"
+      echo "   Setting variables..."
+      echo "##vso[task.setvariable variable=BuildIdUsedInRelease]$build_id"
+      echo "##vso[task.setvariable variable=BuildIdForRelease]$run_id"
+    displayName: "Get and set the build used in latest release"
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)

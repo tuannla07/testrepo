@@ -5,7 +5,7 @@
 # as well as to the AKS repository.
 #-----------------------------------------------------------------------------------------------------------
 # Parameters:
-# - Version: The version of the extensions to build and push
+# - ReleaseVersion: The version of the extensions to build and push
 # - ClientId: The client ID for Omnia Cloud authentication
 # - ClientSecret: The client secret for Omnia Cloud authentication
 # - Intent: The intent for the Omnia Cloud environment (default: "dev")
@@ -17,7 +17,7 @@
 #############################################################################################################
 
 parameters:
-  - name: Version
+  - name: ReleaseVersion
     type: string
     default: "0"
 
@@ -59,17 +59,17 @@ steps:
   # -----------------------------------------------------------------------------------------------------------
   - template: generic-extension-build-to-repository-and-cloud.yml
     parameters:
-      Version: "${{parameters.Version}}"
+      ReleaseVersion: "${{parameters.ReleaseVersion}}"
       ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/omnia/migration-worker-extension.json"
       ExtensionId: "9d44a06d-2702-4fa4-bc87-5b2ebe39403c"
       Intent: "${{parameters.Intent}}"
       Environment: "${{parameters.Environment}}"
       CloudClientId: "${{parameters.ClientId}}"
       CloudClientSecret: "${{parameters.ClientSecret}}"
-      CloudApiAppId: ""
-      CloudApiUrl: ""
-      ApiAppBase: ""
-      CliAppId: ""
+      CloudApiAppId: "${{parameters.CloudApiAppId}}"
+      CloudApiUrl: "${{parameters.CloudApiUrl}}"
+      ApiAppBase: "${{parameters.ApiAppBase}}"
+      CliAppId: "${{parameters.CliAppId}}"
       ExtensionName: "Omnia"
 
   # -----------------------------------------------------------------------------------------------------------
@@ -77,17 +77,17 @@ steps:
   # -----------------------------------------------------------------------------------------------------------
   - template: generic-extension-build-to-repository-and-cloud.yml
     parameters:
-      Version: "${{parameters.Version}}"
+      ReleaseVersion: "${{parameters.ReleaseVersion}}"
       ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/workplace/migration-worker-extension.json"
       ExtensionId: "8177832b-6142-488f-8d1f-665579439872"
       Intent: "${{parameters.Intent}}"
       Environment: "${{parameters.Environment}}"
       CloudClientId: "${{parameters.ClientId}}"
       CloudClientSecret: "${{parameters.ClientSecret}}"
-      CloudApiAppId: ""
-      CloudApiUrl: ""
-      ApiAppBase: ""
-      CliAppId: ""
+      CloudApiAppId: "${{parameters.CloudApiAppId}}"
+      CloudApiUrl: "${{parameters.CloudApiUrl}}"
+      ApiAppBase: "${{parameters.ApiAppBase}}"
+      CliAppId: "${{parameters.CliAppId}}"
       ExtensionName: "Workplace"
 
   # -----------------------------------------------------------------------------------------------------------
@@ -95,17 +95,17 @@ steps:
   # -----------------------------------------------------------------------------------------------------------
   - template: generic-extension-build-to-repository-and-cloud.yml
     parameters:
-      Version: "${{parameters.Version}}"
+      ReleaseVersion: "${{parameters.ReleaseVersion}}"
       ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/webcontentmanagement/migration-worker-extension.json"
       ExtensionId: "aae2ba34-df89-40f0-ab35-06d872291e91"
       Intent: "${{parameters.Intent}}"
       Environment: "${{parameters.Environment}}"
       CloudClientId: "${{parameters.ClientId}}"
       CloudClientSecret: "${{parameters.ClientSecret}}"
-      CloudApiAppId: ""
-      CloudApiUrl: ""
-      ApiAppBase: ""
-      CliAppId: ""
+      CloudApiAppId: "${{parameters.CloudApiAppId}}"
+      CloudApiUrl: "${{parameters.CloudApiUrl}}"
+      ApiAppBase: "${{parameters.ApiAppBase}}"
+      CliAppId: "${{parameters.CliAppId}}"
       ExtensionName: "WCM"
 
   # -----------------------------------------------------------------------------------------------------------
@@ -113,15 +113,15 @@ steps:
   # -----------------------------------------------------------------------------------------------------------
   - template: generic-extension-build-to-repository-and-cloud.yml
     parameters:
-      Version: "${{parameters.Version}}"
+      ReleaseVersion: "${{parameters.ReleaseVersion}}"
       ExtensionJsonPath: "$(Build.ArtifactStagingDirectory)/managementsystem/migration-worker-extension.json"
       ExtensionId: "5c0b2905-a638-4c51-8172-171d5d6dbc6b"
       Intent: "${{parameters.Intent}}"
       Environment: "${{parameters.Environment}}"
       CloudClientId: "${{parameters.ClientId}}"
       CloudClientSecret: "${{parameters.ClientSecret}}"
-      CloudApiAppId: ""
-      CloudApiUrl: ""
-      ApiAppBase: ""
-      CliAppId: ""
+      CloudApiAppId: "${{parameters.CloudApiAppId}}"
+      CloudApiUrl: "${{parameters.CloudApiUrl}}"
+      ApiAppBase: "${{parameters.ApiAppBase}}"
+      CliAppId: "${{parameters.CliAppId}}"
       ExtensionName: "MS"

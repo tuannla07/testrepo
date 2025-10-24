@@ -1,11 +1,13 @@
 ############################################################################################################
-# Omnia Build and Push Extension to Cloud Pipeline Template
+# Omnia Build and Push Migration Extension to Cloud Pipeline Template
 #-----------------------------------------------------------------------------------------------------------
-# This template builds Omnia extensions and pushes them to the specified Omnia Cloud environment.
+# This template builds Omnia migration extensions and pushes them to the specified Omnia Cloud environment.
 #-----------------------------------------------------------------------------------------------------------
 # Parameters:
 # - Tag: The tag to use for the build (e.g., "dev", "latest")
-# - Version: The version of the extensions to build and push
+# - ReleaseVersion: The version of the extensions to build and push
+# - ReleaseDefinitionId: The ID of the release definition to retrieve the build from
+# - BuildDefinitionId: The ID of the build definition to retrieve the build from
 # - DropName: The name of the drop artifact to download and unpack (default: "drop")
 # - CloudClientId: The client ID for Omnia Cloud authentication
 # - CloudClientSecret: The client secret for Omnia Cloud authentication
@@ -22,6 +24,12 @@ parameters:
     type: string
 
   - name: ReleaseVersion
+    type: string
+
+  - name: ReleaseDefinitionId
+    type: string
+
+  - name: BuildDefinitionId
     type: string
 
   - name: DropName
@@ -77,16 +85,24 @@ steps:
       Tag: ${{ parameters.Tag }}
       ExcludeGlobalJson: true
 
-  - template: generic-download-and-unpack-drop.yml
+  # outputs: BuildIdUsedInRelease (internal), BuildIdForRelease (internal)
+  - template: generic-get-release-from-version.yml
     parameters:
-      DropName: ${{ parameters.DropName }}
+      ReleaseVersion: ${{ parameters.ReleaseVersion }}
+      DefinitionId: "${{ parameters.ReleaseDefinitionId }}"
+
+  - template: generic-download-and-unpack-drop-from-build.yml
+    parameters:
+      DropName: $(dropName)
       WorkspacePath: "$(Pipeline.Workspace)"
       StripComponents: 4
+      BuildId: "$(BuildIdUsedInRelease)"
+      BuildDefinitionId: "${{ parameters.BuildDefinitionId }}"
 
   # -----------------------------------------------------------------
   # Build Omnia - Docker image and publish to AZ Container Registry
   # -----------------------------------------------------------------
-  - template: omnia-release-extensions-all-build-to-repository-and-cloud.yml
+  - template: omnia-release-extensions-migration-workers-all-build-to-repository-and-cloud.yml
     parameters:
       ReleaseVersion: "${{ parameters.ReleaseVersion }}"
       ClientId: "${{ parameters.CloudClientId }}"

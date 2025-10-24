@@ -4,12 +4,14 @@
 #-----------------------------------------------------------------------------------------------------------
 # Parameters:
 # - MainVersion: The main version string (e.g., "1.0")
-# - BuildNumber: The build number to append to the version (e.g., "42")
+# - BuildVersionNumber: The build number to append to the version (e.g., "42")
 # - Tag: The tag to use for pre-release versions (e.g., "dev", "latest")
+# outputs:
+#   ReleaseVersion: The constructed version string
 ############################################################################################################
 
 parameters:
-  - name: BuildNumber
+  - name: BuildVersionNumber
     type: string
     default: ""
 
@@ -31,8 +33,8 @@ steps:
         exit 1
       fi
 
-      if [[ -z "${{ parameters.BuildNumber }}" ]]; then
-        echo "Error: BuildNumber is null or empty."
+      if [[ -z "${{ parameters.BuildVersionNumber }}" ]]; then
+        echo "Error: BuildVersionNumber is null or empty."
         exit 1
       fi
 
@@ -42,12 +44,10 @@ steps:
       fi
 
       if [[ -n "${{ parameters.Tag }}" && "${{ parameters.Tag }}" == "latest" ]]; then
-        echo "##vso[task.setvariable variable=Version]${{ parameters.MainVersion }}.${{ parameters.BuildNumber }}"
-        echo "Version set to: ${{ parameters.MainVersion }}.${{ parameters.BuildNumber }}"
-
+        echo "##vso[task.setvariable variable=Version]${{ parameters.MainVersion }}.${{ parameters.BuildVersionNumber }}"
+        echo "Version set to: ${{ parameters.MainVersion }}.${{ parameters.BuildVersionNumber }}"
       else
-        echo "##vso[task.setvariable variable=Version]${{ parameters.MainVersion }}.0-${{ parameters.Tag }}.${{ parameters.BuildNumber }}"
-        echo "Version set to: ${{ parameters.MainVersion }}.0-${{ parameters.Tag }}.${{ parameters.BuildNumber }}"
-
+        echo "##vso[task.setvariable variable=ReleaseVersion]${{ parameters.MainVersion }}.0-${{ parameters.Tag }}.${{ parameters.BuildVersionNumber }}"
+        echo "Version set to: ${{ parameters.MainVersion }}.0-${{ parameters.Tag }}.${{ parameters.BuildVersionNumber }}"
       fi
     displayName: "Ensure Version"

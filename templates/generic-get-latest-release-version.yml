@@ -8,30 +8,18 @@
 #-----------------------------------------------------------------------------------------------------------
 # Parameters:
 # - DefinitionId: The ID of the pipeline definition to query for releases.
+# Outputs:
+# - ShouldBuild: Indicates whether a new build should be triggered (true/false).
+# - BuildDefOnBuild: The build definition ID used in the latest release.
+# - BuildIdUsedInRelease: The build ID associated with the latest release.
+# - BuildConfigUsedInRelease: The build configuration used in the latest release.
+# - BuildPoolUsedInRelease: The build pool used in the latest release.
+# - LastBuildId: The ID of the last successful build for the build definition.
+# - LatestReleaseVersionTag: The version tag of the latest successful release. 
 ############################################################################################################
 
 parameters:
   - name: DefinitionId
-
-  # ------------------------------------
-  # Variables to be set by this template
-  # ------------------------------------
-  # - name: ShouldBuild
-  #   value: false
-  # - name: BuildDefOnBuild
-  #   value: ""
-  # - name: BuildIdUsedInRelease
-  #   value: ""
-  # - name: BuildNumberUsedInRelease
-  #   value: ""
-  # - name: BuildTagUsedInRelease
-  #   value: ""
-  # - name: BuildConfigUsedInRelease
-  #   value: ""
-  # - name: BuildPoolUsedInRelease
-  #   value: ""
-  # - name: NewReleaseBuildNumber
-  #   value: ""
 
 steps:
   - script: |
@@ -69,23 +57,18 @@ steps:
         build_config_on_release=$(echo "$response" | jq -e -r '.templateParameters.BuildConfiguration')
         build_pool_on_release=$(echo "$response" | jq -e -r '.templateParameters.PoolName')
 
-        echo "##vso[task.setvariable variable=BuildIdUsedInRelease]$build_id_on_release"
-        echo "##vso[task.setvariable variable=BuildConfigUsedInRelease]$build_config_on_release"
-        echo "##vso[task.setvariable variable=BuildPoolUsedInRelease]$build_pool_on_release"
 
         echo "---------------------------------------------"
         echo "3. Get the version number used on latest release"
         response=$(curl -s -u :$TOKEN "https://dev.azure.com/omnia-source/Omnia/_apis/build/builds/$run_id/tags")
         version_tag=$(echo "$response" | jq -e -r '.value[0]')
         echo "   Got the tag: $version_tag"
-        echo "##vso[task.setvariable variable=LatestReleaseVersionTag]$version_tag"
 
         echo "---------------------------------------------"
         echo "4. Get the build used in latest release"
         response=$(curl -s -u :$TOKEN "https://dev.azure.com/omnia-source/Omnia/_apis/build/builds/$build_id_on_release")
         build_def_on_build=$(echo "$response" | jq -e -r '.definition.id')
         echo "   Got the build used and it's definition: $build_def_on_build"
-        echo "##vso[task.setvariable variable=BuildDefOnBuild]$build_def_on_build"
 
         echo "---------------------------------------------"
         echo "5. Get last successful build for build definition: $build_def_on_build"
@@ -94,6 +77,12 @@ steps:
               .value[] 
               | .id' | head -n 1)
         echo "   Got the last build id: $last_build_id"
+
+        echo "##vso[task.setvariable variable=BuildIdUsedInRelease]$build_id_on_release"
+        echo "##vso[task.setvariable variable=BuildConfigUsedInRelease]$build_config_on_release"
+        echo "##vso[task.setvariable variable=BuildPoolUsedInRelease]$build_pool_on_release"
+        echo "##vso[task.setvariable variable=LatestReleaseVersionTag]$version_tag"
+        echo "##vso[task.setvariable variable=BuildDefOnBuild]$build_def_on_build"
         echo "##vso[task.setvariable variable=LastBuildId]$last_build_id"
 
         echo "---------------------------------------------"
